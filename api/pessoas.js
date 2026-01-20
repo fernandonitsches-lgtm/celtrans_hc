@@ -42,7 +42,7 @@ const handleTest = async (res) => {
       count: data.length
     });
   } catch (error) {
-    throw error;
+    return handleError(res, 500, error.message);
   }
 };
 
@@ -54,7 +54,7 @@ const handleGet = async (res) => {
       people: data || []
     });
   } catch (error) {
-    throw error;
+    return handleError(res, 500, error.message);
   }
 };
 
@@ -74,7 +74,7 @@ const handleInsert = async (res, body) => {
       data: data[0]
     });
   } catch (error) {
-    throw error;
+    return handleError(res, 500, error.message);
   }
 };
 
