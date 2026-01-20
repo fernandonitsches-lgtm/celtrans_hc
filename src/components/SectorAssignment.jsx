@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Download, RotateCcw, Users, Search, Wifi, WifiOff, Loader } from 'lucide-react';
+import { Calendar, Download, RotateCcw, Users, Search, Wifi } from 'lucide-react';
 
 const SectorAssignment = () => {
   const [assignments, setAssignments] = useState({});
@@ -7,10 +7,9 @@ const SectorAssignment = () => {
   const [today, setToday] = useState(new Date().toISOString().split('T')[0]);
   const [justificativas, setJustificativas] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
-  const [dbStatus, setDbStatus] = useState('connected');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  // Dados de exemplo
+  // Dados locais apenas - sem chamadas de API
   const mockPeople = [
     { id: 1, name: 'João Silva', cargo: 'Operador', area: 'A', operacao: 'OP1', setor: 'Setor A' },
     { id: 2, name: 'Maria Santos', cargo: 'Técnico', area: 'B', operacao: 'OP2', setor: 'Setor B' },
