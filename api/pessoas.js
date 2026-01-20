@@ -11,12 +11,12 @@ module.exports = async (req, res) => {
   
   try {
     const supabaseUrl = 'https://fgolrboqzvqqhyklsxsm.supabase.co';
-    const supabaseKey = process.env.SUPABASE_SECRET_KEY;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     
     if (!supabaseKey) {
       return res.status(500).json({ 
         success: false, 
-        message: 'SUPABASE_SECRET_KEY não configurada'
+        message: 'SUPABASE_SERVICE_ROLE_KEY não configurada'
       });
     }
     
