@@ -1,23 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Download, RotateCcw, Users, ChevronDown, BarChart3, Search, Filter, History, AlertCircle, Wifi, WifiOff, Loader } from 'lucide-react';
+import { Calendar, Download, RotateCcw, Users, Search, Wifi, WifiOff, Loader } from 'lucide-react';
 
 const SectorAssignment = () => {
-  const [initialPeople, setInitialPeople] = useState([]);
   const [assignments, setAssignments] = useState({});
   const [draggedPerson, setDraggedPerson] = useState(null);
   const [today, setToday] = useState(new Date().toISOString().split('T')[0]);
   const [justificativas, setJustificativas] = useState({});
-  const [expandedOps, setExpandedOps] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterOperacao, setFilterOperacao] = useState('todas');
-  const [dbStatus, setDbStatus] = useState('checking');
+  const [dbStatus, setDbStatus] = useState('connected');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  const operacoes = initialPeople.length > 0 ? [...new Set(initialPeople.map(p => p.operacao))].sort() : [];
+  // Dados de exemplo
+  const mockPeople = [
+    { id: 1, name: 'João Silva', cargo: 'Operador', area: 'A', operacao: 'OP1', setor: 'Setor A' },
+    { id: 2, name: 'Maria Santos', cargo: 'Técnico', area: 'B', operacao: 'OP2', setor: 'Setor B' },
+    { id: 3, name: 'Pedro Costa', cargo: 'Supervisor', area: 'C', operacao: 'OP1', setor: 'Setor A' },
+    { id: 4, name: 'Ana Oliveira', cargo: 'Operador', area: 'D', operacao: 'OP2', setor: 'Setor B' },
+    { id: 5, name: 'Carlos Souza', cargo: 'Técnico', area: 'E', operacao: 'OP1', setor: 'Setor A' },
+  ];
 
-  // Carrega dados ao montar o componente
+  // Inicializa atribuições ao carregar
   useEffect(() => {
-    loadPeopleFromSupabase();
+    initializeAssignments();
   }, []);
 
   // Carrega atribuições do dia
@@ -25,40 +29,16 @@ const SectorAssignment = () => {
     loadData();
   }, [today]);
 
-  // Inicializa atribuições
-  useEffect(() => {
-    if (Object.keys(assignments).length === 0 && initialPeople.length > 0) {
-      initializeAssignments();
-    }
-  }, [initialPeople]);
-
-  const testDatabaseConnection = async () => {
-    try {
-      setDbStatus('checking');
-      // Simula dados locais para validação
-      const testData = initialPeople && initialPeople.length > 0;
-      setDbStatus(testData ? 'connected' : 'disconnected');
-    } catch (error) {
-      console.error('Erro ao validar dados:', error);
-      setDbStatus('disconnected');
-    }
-  };
-
-  const loadPeopleFromSupabase = async () => {
-    try {
-      // Dados de exemplo - substituir por dados reais depois
-      const mockData = [
-        { id: 1, name: 'João Silva', cargo: 'Operador', area: 'A', operacao: 'OP1', setor: 'Setor A' },
-        { id: 2, name: 'Maria Santos', cargo: 'Técnico', area: 'B', operacao: 'OP2', setor: 'Setor B' },
-        { id: 3, name: 'Pedro Costa', cargo: 'Supervisor', area: 'C', operacao: 'OP1', setor: 'Setor A' }
-      ];
-      
-      setInitialPeople(mockData);
-      setDbStatus('connected');
-    } catch (error) {
-      console.error('Erro ao carregar pessoas:', error);
-      setDbStatus('disconnected');
-    }
+  const initializeAssignments = () => {
+    const init = { 'falta': [] };
+    mockPeople.forEach(person => {
+      const setor = person.setor || 'sem-setor';
+      if (!init[setor]) {
+        init[setor] = [];
+      }
+      init[setor].push(person);
+    });
+    setAssignments(init);
   };
 
   const loadData = async () => {
@@ -92,21 +72,6 @@ const SectorAssignment = () => {
       console.error('Erro ao salvar:', error);
       return false;
     }
-  };
-
-  const initializeAssignments = () => {
-    const init = { 'falta': [] };
-    initialPeople.forEach(person => {
-      const setor = person.setor || 'sem-setor';
-      if (!init[setor]) {
-        init[setor] = [];
-      }
-      init[setor].push(person);
-    });
-    setAssignments(init);
-    const expandAll = {};
-    operacoes.forEach(op => expandAll[op] = true);
-    setExpandedOps(expandAll);
   };
 
   const handleDragStart = (person, source) => {
@@ -193,40 +158,21 @@ const SectorAssignment = () => {
     .filter(k => k !== 'falta')
     .reduce((sum, k) => sum + (assignments[k]?.length || 0), 0);
 
-  if (!initialPeople.length) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 flex items-center justify-center">
-        <div className="text-center">
-          <Loader className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-slate-600">Carregando dados do Supabase...</p>
-          <p className="text-xs text-slate-500 mt-2">Status BD: {dbStatus}</p>
-        </div>
-      </div>
-    );
-  }
+  const setores = Object.keys(assignments).filter(k => k !== 'falta').sort();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4">
       <div className="max-w-full mx-auto">
         
-        {/* Flag de Status do Banco de Dados */}
+        {/* Flag de Status */}
         <div className="fixed top-4 right-4 z-50">
-          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg shadow-md ${
-            dbStatus === 'connected' 
-              ? 'bg-green-100 text-green-700'
-              : dbStatus === 'checking'
-              ? 'bg-blue-100 text-blue-700'
-              : 'bg-red-100 text-red-700'
-          }`}>
-            {dbStatus === 'connected' && <Wifi className="w-4 h-4" />}
-            {dbStatus === 'checking' && <Loader className="w-4 h-4 animate-spin" />}
-            {dbStatus === 'disconnected' && <WifiOff className="w-4 h-4" />}
-            <span className="text-xs font-semibold">
-              {dbStatus === 'connected' ? '✓ BD' : dbStatus === 'checking' ? '⏳ BD' : '✗ BD'}
-            </span>
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg shadow-md bg-green-100 text-green-700">
+            <Wifi className="w-4 h-4" />
+            <span className="text-xs font-semibold">✓ Local</span>
           </div>
         </div>
         
+        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <Calendar className="w-8 h-8 text-blue-600" />
@@ -245,6 +191,7 @@ const SectorAssignment = () => {
           />
         </div>
 
+        {/* Stats */}
         <div className="bg-white rounded-lg shadow-md p-3 mb-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex gap-4 text-sm">
@@ -286,8 +233,9 @@ const SectorAssignment = () => {
           </div>
         </div>
 
+        {/* Search */}
         <div className="bg-white rounded-lg shadow-md p-3 mb-4">
-          <div className="flex-1 relative">
+          <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
             <input
               type="text"
@@ -299,7 +247,8 @@ const SectorAssignment = () => {
           </div>
         </div>
 
-        <div className="bg-red-50 rounded-lg shadow-md border-4 border-dashed border-red-300 p-4">
+        {/* Faltas */}
+        <div className="bg-red-50 rounded-lg shadow-md border-4 border-dashed border-red-300 p-4 mb-4">
           <h2 className="font-bold text-red-700 mb-3">❌ FALTA ({filteredPeople(assignments['falta'])?.length || 0})</h2>
           <div onDragOver={handleDragOver} onDrop={() => handleDrop('falta')} className="min-h-24">
             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2">
@@ -311,7 +260,7 @@ const SectorAssignment = () => {
                   className="bg-red-100 p-2 rounded border-l-3 border-red-500 cursor-move text-xs hover:shadow-md transition"
                 >
                   <div className="font-semibold text-red-900 line-clamp-2">{person.name}</div>
-                  <div className="text-red-700">{person.cargo}</div>
+                  <div className="text-red-700 text-xs">{person.cargo}</div>
                 </div>
               ))}
             </div>
@@ -336,6 +285,30 @@ const SectorAssignment = () => {
               ))}
             </div>
           )}
+        </div>
+
+        {/* Setores */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {setores.map(setor => (
+            <div key={setor} className="bg-blue-50 rounded-lg shadow-md border-l-4 border-blue-500 p-4">
+              <h2 className="font-bold text-blue-700 mb-3">{setor} ({filteredPeople(assignments[setor])?.length || 0})</h2>
+              <div onDragOver={handleDragOver} onDrop={() => handleDrop(setor)} className="min-h-32">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {filteredPeople(assignments[setor])?.map(person => (
+                    <div
+                      key={person.id}
+                      draggable
+                      onDragStart={() => handleDragStart(person, setor)}
+                      className="bg-blue-100 p-2 rounded border-l-3 border-blue-500 cursor-move text-xs hover:shadow-md transition"
+                    >
+                      <div className="font-semibold text-blue-900 line-clamp-2">{person.name}</div>
+                      <div className="text-blue-700 text-xs">{person.cargo}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
