@@ -24,12 +24,12 @@ const fetchSupabase = async (endpoint, options = {}) => {
     headers: getHeaders(),
     ...options
   });
-
+  
   if (!response.ok) {
     const error = await response.text();
     throw new Error(`${response.status}: ${error}`);
   }
-
+  
   return response.json();
 };
 
@@ -88,7 +88,7 @@ module.exports = async (req, res) => {
   if (!SUPABASE_KEY) {
     return handleError(res, 500, 'SUPABASE_SERVICE_ROLE_KEY não configurada');
   }
-
+  
   try {
     switch (true) {
       case req.method === 'POST' && req.body?.action === 'test':
