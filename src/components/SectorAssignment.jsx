@@ -17,7 +17,6 @@ const SectorAssignment = () => {
 
   // Carrega dados ao montar o componente
   useEffect(() => {
-    testDatabaseConnection();
     loadPeopleFromSupabase();
   }, []);
 
