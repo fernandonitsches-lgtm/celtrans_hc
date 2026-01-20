@@ -1,100 +1,109 @@
-module.exports = async (req, res) => {
-  // CORS headers
+const SUPABASE_URL = 'https://fgolrboqzvqqhyklsxsm.supabase.co';
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+const setCorsHeaders = (res) => {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+};
+
+const getHeaders = () => ({
+  'apikey': SUPABASE_KEY,
+  'Authorization': `Bearer ${SUPABASE_KEY}`,
+  'Content-Type': 'application/json'
+});
+
+const handleError = (res, statusCode, message) => {
+  console.error('API Error:', message);
+  return res.status(statusCode).json({ success: false, message });
+};
+
+const fetchSupabase = async (endpoint, options = {}) => {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1${endpoint}`, {
+    headers: getHeaders(),
+    ...options
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`${response.status}: ${error}`);
+  }
+
+  return response.json();
+};
+
+const handleTest = async (res) => {
+  try {
+    const data = await fetchSupabase('/pessoas?select=id');
+    return res.status(200).json({ 
+      success: true, 
+      message: 'Conexão bem-sucedida',
+      count: data.length
+    });
+  } catch (error) {
+    throw error;
+  }
+};
+
+const handleGet = async (res) => {
+  try {
+    const data = await fetchSupabase('/pessoas');
+    return res.status(200).json({ 
+      success: true, 
+      people: data || []
+    });
+  } catch (error) {
+    throw error;
+  }
+};
+
+const handleInsert = async (res, body) => {
+  try {
+    const data = await fetchSupabase('/pessoas', {
+      method: 'POST',
+      headers: {
+        ...getHeaders(),
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify(body.data)
+    });
+    
+    return res.status(200).json({ 
+      success: true, 
+      data: data[0]
+    });
+  } catch (error) {
+    throw error;
+  }
+};
+
+module.exports = async (req, res) => {
+  setCorsHeaders(res);
   
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
   
+  if (!SUPABASE_KEY) {
+    return handleError(res, 500, 'SUPABASE_SERVICE_ROLE_KEY não configurada');
+  }
+
   try {
-    const supabaseUrl = 'https://fgolrboqzvqqhyklsxsm.supabase.co';
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    
-    if (!supabaseKey) {
-      return res.status(500).json({ 
-        success: false, 
-        message: 'SUPABASE_SERVICE_ROLE_KEY não configurada'
-      });
+    switch (true) {
+      case req.method === 'POST' && req.body?.action === 'test':
+        return await handleTest(res);
+      
+      case req.method === 'GET':
+        return await handleGet(res);
+      
+      case req.method === 'POST' && req.body?.action === 'insert':
+        return await handleInsert(res, req.body);
+      
+      default:
+        return res.status(405).json({ success: false, message: 'Method not allowed' });
     }
-    
-    const headers = {
-      'apikey': supabaseKey,
-      'Authorization': `Bearer ${supabaseKey}`,
-      'Content-Type': 'application/json'
-    };
-    
-    // Test connection
-    if (req.method === 'POST' && req.body?.action === 'test') {
-      const response = await fetch(`${supabaseUrl}/rest/v1/pessoas?select=id`, {
-        method: 'GET',
-        headers
-      });
-      
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`${response.status}: ${error}`);
-      }
-      
-      const data = await response.json();
-      return res.status(200).json({ 
-        success: true, 
-        message: 'Conexão bem-sucedida',
-        count: data.length
-      });
-    }
-    
-    // Get all people
-    if (req.method === 'GET') {
-      const response = await fetch(`${supabaseUrl}/rest/v1/pessoas`, {
-        method: 'GET',
-        headers
-      });
-      
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`${response.status}: ${error}`);
-      }
-      
-      const data = await response.json();
-      return res.status(200).json({ 
-        success: true, 
-        people: data || []
-      });
-    }
-    
-    // Insert new person
-    if (req.method === 'POST' && req.body?.action === 'insert') {
-      const response = await fetch(`${supabaseUrl}/rest/v1/pessoas`, {
-        method: 'POST',
-        headers: {
-          ...headers,
-          'Prefer': 'return=representation'
-        },
-        body: JSON.stringify(req.body.data)
-      });
-      
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`${response.status}: ${error}`);
-      }
-      
-      const data = await response.json();
-      return res.status(200).json({ 
-        success: true, 
-        data: data[0]
-      });
-    }
-    
-    return res.status(405).json({ success: false, message: 'Method not allowed' });
-    
   } catch (error) {
-    console.error('API Error:', error.message);
-    return res.status(500).json({ 
-      success: false, 
-      message: error.message
-    });
+    return handleError(res, 500, error.message);
   }
 };
