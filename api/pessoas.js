@@ -8,18 +8,15 @@ export default async (req, res) => {
     res.status(200).end();
     return;
   }
-
   try {
     const supabaseUrl = 'https://fgolrboqzvqqhyklsxsm.supabase.co';
     const supabaseKey = process.env.SUPABASE_SECRET_KEY;
-
     if (!supabaseKey) {
       return res.status(500).json({ 
         success: false, 
         message: 'SUPABASE_SECRET_KEY não configurada'
       });
     }
-
     // Testa conexão
     if (req.method === 'POST' && req.body?.action === 'test') {
       const response = await fetch(`${supabaseUrl}/rest/v1/pessoas?select=id`, {
@@ -30,12 +27,10 @@ export default async (req, res) => {
           'Content-Type': 'application/json'
         }
       });
-
       if (!response.ok) {
         const error = await response.text();
         throw new Error(`${response.status}: ${error}`);
       }
-
       const data = await response.json();
       
       return res.status(200).json({ 
@@ -55,12 +50,10 @@ export default async (req, res) => {
           'Content-Type': 'application/json'
         }
       });
-
       if (!response.ok) {
         const error = await response.text();
         throw new Error(`${response.status}: ${error}`);
       }
-
       const data = await response.json();
       
       return res.status(200).json({ 
@@ -81,12 +74,10 @@ export default async (req, res) => {
         },
         body: JSON.stringify(req.body.data)
       });
-
       if (!response.ok) {
         const error = await response.text();
         throw new Error(`${response.status}: ${error}`);
       }
-
       const data = await response.json();
       
       return res.status(200).json({ 
@@ -94,9 +85,7 @@ export default async (req, res) => {
         data: data[0]
       });
     }
-
     return res.status(405).json({ success: false, message: 'Method not allowed' });
-
   } catch (error) {
     console.error('API Error:', error.message);
     return res.status(500).json({ 
