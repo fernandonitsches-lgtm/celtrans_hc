@@ -44,6 +44,7 @@ const SectorAssignment = () => {
       const data = await response.json();
       setDbStatus(data.success ? 'connected' : 'disconnected');
     } catch (error) {
+      console.error('Erro ao testar BD:', error);
       setDbStatus('disconnected');
     }
   };
@@ -56,8 +57,10 @@ const SectorAssignment = () => {
       });
       const data = await response.json();
       
-      if (data.success && data.people.length > 0) {
+      if (data.success && data.people && data.people.length > 0) {
         setInitialPeople(data.people);
+      } else {
+        console.warn('Nenhum dado retornado da API');
       }
     } catch (error) {
       console.error('Erro ao carregar pessoas:', error);
@@ -76,6 +79,7 @@ const SectorAssignment = () => {
         initializeAssignments();
       }
     } catch (error) {
+      console.error('Erro ao carregar dados:', error);
       initializeAssignments();
     }
   };
@@ -99,10 +103,11 @@ const SectorAssignment = () => {
   const initializeAssignments = () => {
     const init = { 'falta': [] };
     initialPeople.forEach(person => {
-      if (!init[person.setor]) {
-        init[person.setor] = [];
+      const setor = person.setor || 'sem-setor';
+      if (!init[setor]) {
+        init[setor] = [];
       }
-      init[person.setor].push(person);
+      init[setor].push(person);
     });
     setAssignments(init);
     const expandAll = {};
@@ -200,6 +205,7 @@ const SectorAssignment = () => {
         <div className="text-center">
           <Loader className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
           <p className="text-slate-600">Carregando dados do Supabase...</p>
+          <p className="text-xs text-slate-500 mt-2">Status BD: {dbStatus}</p>
         </div>
       </div>
     );
