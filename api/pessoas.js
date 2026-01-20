@@ -1,4 +1,9 @@
 module.exports = async function handler(req, res) {
+  console.log('=== API PESSOAS CHAMADA ===')
+  console.log('Método:', req.method)
+  console.log('Body:', JSON.stringify(req.body))
+  console.log('SUPABASE_SECRET_KEY existe:', !!process.env.SUPABASE_SECRET_KEY)
+  
   // CORS headers
   res.setHeader('Access-Control-Allow-Credentials', 'true')
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -14,29 +19,43 @@ module.exports = async function handler(req, res) {
     const supabaseUrl = 'https://fgolrboqzvqqhyklsxsm.supabase.co'
     const supabaseKey = process.env.SUPABASE_SECRET_KEY
 
+    console.log('Supabase URL:', supabaseUrl)
+
     if (!supabaseKey) {
-      throw new Error('SUPABASE_SECRET_KEY não configurada')
+      console.error('ERRO: SUPABASE_SECRET_KEY não definida')
+      return res.status(500).json({ 
+        success: false, 
+        message: 'SUPABASE_SECRET_KEY não configurada',
+        debug: 'Variável de ambiente não encontrada'
+      })
     }
 
     // Testa conexão
     if (req.method === 'POST' && req.body?.action === 'test') {
-      const response = await fetch(
-        `${supabaseUrl}/rest/v1/pessoas?select=count(*)`,
-        {
-          method: 'GET',
-          headers: {
-            'apikey': supabaseKey,
-            'Authorization': `Bearer ${supabaseKey}`,
-            'Content-Type': 'application/json'
-          }
+      console.log('Testando conexão...')
+      const url = `${supabaseUrl}/rest/v1/pessoas?select=count(*)`
+      console.log('URL:', url)
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json'
         }
-      )
+      })
+
+      console.log('Response status:', response.status)
+      console.log('Response ok:', response.ok)
 
       if (!response.ok) {
-        throw new Error(`Erro ao conectar: ${response.statusText}`)
+        const errorText = await response.text()
+        console.error('Erro Supabase:', errorText)
+        throw new Error(`Erro ao conectar: ${response.statusText} - ${errorText}`)
       }
 
       const data = await response.json()
+      console.log('Dados recebidos:', data)
       
       return res.status(200).json({ 
         success: true, 
@@ -156,10 +175,13 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ success: false, message: 'Method not allowed' })
 
   } catch (error) {
-    console.error('Erro:', error.message)
+    console.error('=== ERRO NA API ===')
+    console.error('Mensagem:', error.message)
+    console.error('Stack:', error.stack)
     return res.status(500).json({ 
       success: false, 
-      message: error.message
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     })
   }
 }
