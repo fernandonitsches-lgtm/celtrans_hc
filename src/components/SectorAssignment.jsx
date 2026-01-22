@@ -1,4 +1,21 @@
-import React, { useState, useEffect } from 'react';
+</div>
+      </div>
+
+      {/* Modal de Confirmação */}
+      <ModalSalvar
+        isOpen={modalAberto}
+        onClose={() => setModalAberto(false)}
+        onConfirm={handleConfirmarSalvar}
+        assignments={assignments}
+        justificativas={justificativas}
+        onJustificativaChange={handleJustificativa}
+        data={today}
+      />
+    </div>
+  );
+};
+
+export default SectorAssignment;import React, { useState, useEffect } from 'react';
 import { Calendar, Download, RotateCcw, Users, ChevronDown, BarChart3, Search, Filter, AlertCircle } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
@@ -18,6 +35,8 @@ const SectorAssignment = () => {
   const [viewMode, setViewMode] = useState('atribuir');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterOperacao, setFilterOperacao] = useState('todas');
+  const [modalAberto, setModalAberto] = useState(false);
+  const [salvando, setSalvando] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [operacoes, setOperacoes] = useState([]);
@@ -144,6 +163,11 @@ const SectorAssignment = () => {
   };
 
   const handleSalvar = async () => {
+    setModalAberto(true);
+  };
+
+  const handleConfirmarSalvar = async (justificativasFinais, planoAcao) => {
+    setSalvando(true);
     try {
       // 1. Salvar atribuições do dia
       const atribuicoes = [];
@@ -173,7 +197,8 @@ const SectorAssignment = () => {
             pessoa_nome: person.name,
             cargo: person.cargo,
             operacao: person.operacao,
-            justificativa: justificativas[person.id] || ''
+            justificativa: justificativasFinais[person.id] || '',
+            plano_acao: planoAcao
           });
         });
       }
@@ -199,12 +224,16 @@ const SectorAssignment = () => {
         if (faltaError) throw faltaError;
       }
 
+      // Atualizar estado local
+      setJustificativas(justificativasFinais);
+
       alert('✓ Dados salvos com sucesso para ' + today);
     } catch (error) {
       console.error('Erro ao salvar:', error);
       alert('Erro ao salvar: ' + error.message);
+    } finally {
+      setSalvando(false);
     }
-  };
 
   const handleExport = () => {
     let csv = 'Data,Operação,Setor,Nome,Cargo,Area\n';
@@ -612,7 +641,6 @@ const SectorAssignment = () => {
               ))}
             </div>
           )}
-        </div>
       </div>
     </div>
   );
