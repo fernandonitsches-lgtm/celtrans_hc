@@ -2,15 +2,21 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import SectorAssignment from './components/SectorAssignment';
 import Login from './components/Login';
-import { LogOut } from 'lucide-react';
+import AdminPanel from './components/AdminPanel';
+import { LogOut, Settings } from 'lucide-react';
 
 const supabaseUrl = 'https://fgolrboqzvqqhyklsxsm.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnb2xyYm9xenZxcWh5a2xzeHNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0OTI3MzUsImV4cCI6MjA4NDA2ODczNX0.rFmuEoiJoPnnbCBQ308FAfj1eBQo9Kc0iJSyFPX-xj0';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// CONFIGURAR SEU EMAIL DE ADMIN AQUI
+const ADMIN_EMAIL = 'seu-email@email.com'; // MUDE PARA SEU EMAIL
+
 function App() {
   const [user, setUser] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showAdmin, setShowAdmin] = useState(false);
 
   // Verificar se usuário já está logado ao carregar
   useEffect(() => {
@@ -18,6 +24,7 @@ function App() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         setUser(user);
+        setIsAdmin(user?.email === ADMIN_EMAIL);
       } catch (error) {
         console.error('Erro ao verificar usuário:', error);
       } finally {
@@ -30,7 +37,9 @@ function App() {
     // Escutar mudanças de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        setUser(session?.user || null);
+        const currentUser = session?.user || null;
+        setUser(currentUser);
+        setIsAdmin(currentUser?.email === ADMIN_EMAIL);
       }
     );
 
@@ -41,6 +50,8 @@ function App() {
     try {
       await supabase.auth.signOut();
       setUser(null);
+      setIsAdmin(false);
+      setShowAdmin(false);
     } catch (error) {
       console.error('Erro ao fazer logout:', error);
     }
@@ -64,13 +75,49 @@ function App() {
     return <Login onLoginSuccess={() => {}} />;
   }
 
-  // Se está logado, mostrar sistema de atribuição
+  // Se está logado e é admin, mostrar painel admin
+  if (isAdmin && showAdmin) {
+    return (
+      <div>
+        <div className="absolute top-4 right-4 flex items-center gap-3 bg-white px-4 py-2 rounded-lg shadow-md">
+          <span className="text-sm text-slate-600">
+            <span className="font-semibold text-purple-600">🔐 ADMIN</span>
+          </span>
+          <button
+            onClick={() => setShowAdmin(false)}
+            className="flex items-center gap-2 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition"
+          >
+            ← Voltar
+          </button>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition"
+          >
+            <LogOut className="w-4 h-4" />
+            Sair
+          </button>
+        </div>
+        <AdminPanel />
+      </div>
+    );
+  }
+
+  // Se está logado (user normal), mostrar sistema de atribuição
   return (
     <div>
-      <div className="absolute top-4 right-4 flex items-center gap-4 bg-white px-4 py-2 rounded-lg shadow-md">
+      <div className="absolute top-4 right-4 flex items-center gap-3 bg-white px-4 py-2 rounded-lg shadow-md z-50">
         <span className="text-sm text-slate-600">
           Logado como: <span className="font-semibold">{user.email}</span>
         </span>
+        {isAdmin && (
+          <button
+            onClick={() => setShowAdmin(true)}
+            className="flex items-center gap-2 px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 transition"
+          >
+            <Settings className="w-4 h-4" />
+            Admin
+          </button>
+        )}
         <button
           onClick={handleLogout}
           className="flex items-center gap-2 px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition"
