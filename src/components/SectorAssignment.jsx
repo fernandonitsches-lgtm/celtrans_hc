@@ -179,12 +179,12 @@ const SectorAssignment = () => {
       }
 
       // Deletar registros antigos do dia para evitar duplicatas
-      await supabaseDb.from('atribuicoes_diarias').delete().eq('data', today);
-      await supabaseDb.from('faltas_diarias').delete().eq('data', today);
+      await supabase.from('atribuicoes_diarias').delete().eq('data', today);
+      await supabase.from('faltas_diarias').delete().eq('data', today);
 
       // Inserir novos registros
       if (atribuicoes.length > 0) {
-        const { error: atribError } = await supabaseDb
+        const { error: atribError } = await supabase
           .from('atribuicoes_diarias')
           .insert(atribuicoes);
         
@@ -192,7 +192,7 @@ const SectorAssignment = () => {
       }
 
       if (faltas.length > 0) {
-        const { error: faltaError } = await supabaseDb
+        const { error: faltaError } = await supabase
           .from('faltas_diarias')
           .insert(faltas);
         
