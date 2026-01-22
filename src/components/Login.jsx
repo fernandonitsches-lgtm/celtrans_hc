@@ -18,7 +18,6 @@ const Login = ({ onLoginSuccess }) => {
     setLoading(true);
 
     try {
-      // Tentar fazer login com email e senha
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -26,26 +25,6 @@ const Login = ({ onLoginSuccess }) => {
 
       if (authError) {
         setError('Email ou senha incorretos');
-        return;
-      }
-
-      // Verificar se o usuário está cadastrado na tabela usuarios
-      const { data: usuario, error: dbError } = await supabase
-        .from('usuarios')
-        .select('*')
-        .eq('email', email)
-        .single();
-
-      if (dbError || !usuario) {
-        // Usuário não está na lista de cadastrados
-        await supabase.auth.signOut();
-        setError('Você não está autorizado a acessar o sistema');
-        return;
-      }
-
-      if (!usuario.ativo) {
-        await supabase.auth.signOut();
-        setError('Sua conta foi desativada');
         return;
       }
 
