@@ -24,7 +24,7 @@ function App() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         setUser(user);
-        setIsAdmin(user?.email === fsarres@celtrans.com.br);
+        setIsAdmin(user?.email === ADMIN_EMAIL);
       } catch (error) {
         console.error('Erro ao verificar usuário:', error);
       } finally {
