@@ -3,8 +3,8 @@ import { Calendar, Download, RotateCcw, Users, ChevronDown, BarChart3, Search, F
 import { createClient } from '@supabase/supabase-js';
 
 // Inicializar Supabase
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const SectorAssignment = () => {
