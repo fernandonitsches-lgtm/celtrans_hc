@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Download, RotateCcw, Users, ChevronDown, BarChart3, Search, Filter, History, AlertCircle, TrendingUp } from 'lucide-react';
+import { Calendar, Download, RotateCcw, Users, ChevronDown, BarChart3, Search, Filter, History, AlertCircle } from 'lucide-react';
 
 const SectorAssignment = () => {
   const initialPeople = [
@@ -15,41 +15,11 @@ const SectorAssignment = () => {
     { id: 10, name: 'GILVAM APARECIDO CARDOSO', cargo: 'OPERADOR ESPECIALIZADO', area: 'EBT (DOUGLAS)', setor: 'Recebimento/Reversa', operacao: 'EBT (DOUGLAS)' },
     { id: 11, name: 'MATHEUS PAULA DE SOUZA', cargo: 'OPERADOR II', area: 'EBT (DOUGLAS)', setor: 'Separação/atendimento', operacao: 'EBT (DOUGLAS)' },
     { id: 12, name: 'DOUGLAS ALVES DIAS', cargo: 'LIDER', area: 'EBT/OMR (DOUGLAS)', setor: 'Liderança', operacao: 'EBT (DOUGLAS)' },
-    { id: 13, name: 'ITALO GABRIEL DOS SANTOS MACHADO', cargo: 'OPERADOR I', area: 'NET MISCELÂNEA (THIAGO G.)', setor: 'Expedição', operacao: 'NET MISCELÂNEA (THIAGO G.)' },
-    { id: 14, name: 'YASMIN LAISSE ROSA DOS SANTOS', cargo: 'ASSISTENTE OPERACIONAL', area: 'NET MISCELÂNEA (THIAGO G.)', setor: 'Faturamento', operacao: 'NET MISCELÂNEA (THIAGO G.)' },
-    { id: 15, name: 'GERLAN DOS SANTOS LIMA', cargo: 'OPERADOR I', area: 'NET MISCELÂNEA (THIAGO G.)', setor: 'Inventário rotativo', operacao: 'NET MISCELÂNEA (THIAGO G.)' },
-    { id: 16, name: 'WALISON LUCAS EZEQUIEL ALVES DA SILVA', cargo: 'OPERADOR I', area: 'NET MISCELÂNEA (THIAGO G.)', setor: 'Inventário rotativo', operacao: 'NET MISCELÂNEA (THIAGO G.)' },
-    { id: 17, name: 'THIAGO GOMES REZENDE', cargo: 'LIDER II', area: 'NET MISCELÂNEA (THIAGO G.)', setor: 'Liderança', operacao: 'NET MISCELÂNEA (THIAGO G.)' },
-    { id: 18, name: 'MARIANA CAEIRO FERNANDES', cargo: 'OPERADOR I', area: 'NET MISCELÂNEA (THIAGO G.)', setor: 'Recebimento', operacao: 'NET MISCELÂNEA (THIAGO G.)' },
-    { id: 19, name: 'WELLINGTON FABRICIO DOS SANTOS', cargo: 'OPERADOR II', area: 'NET MISCELÂNEA (THIAGO G.)', setor: 'Recebimento', operacao: 'NET MISCELÂNEA (THIAGO G.)' },
-    { id: 20, name: 'JUVANIA GONÇALVES DOS SANTOS GOMES', cargo: 'OPERADOR I', area: 'NET MISCELÂNEA (THIAGO G.)', setor: 'Separação/atendimento', operacao: 'NET MISCELÂNEA (THIAGO G.)' },
-    { id: 21, name: 'PABLO DE LIMA MATOS', cargo: 'OPERADOR I', area: 'NET MISCELÂNEA (THIAGO G.)', setor: 'Separação/atendimento', operacao: 'NET MISCELÂNEA (THIAGO G.)' },
-    { id: 22, name: 'PATRICK JORDAN DE SOUZA', cargo: 'OPERADOR I', area: 'NET MISCELÂNEA (THIAGO G.)', setor: 'Separação/atendimento', operacao: 'NET MISCELÂNEA (THIAGO G.)' },
-    { id: 23, name: 'JOSMANN ROBERTO COSTA', cargo: 'OPERADOR I', area: 'NET MISCELÂNEA (THIAGO G.)', setor: 'Separação/atendimento', operacao: 'NET MISCELÂNEA (THIAGO G.)' },
-    { id: 24, name: 'FERNANDO MARTINS RODRIGUES DA SILVA', cargo: 'OPERADOR I', area: 'NET MISCELÂNEA (THIAGO G.)', setor: 'Separação/atendimento (Udef)', operacao: 'NET MISCELÂNEA (THIAGO G.)' },
-    { id: 25, name: 'ANA ELOIZA ALVES SILVA', cargo: 'ASSISTENTE OPERACIONAL', area: 'NET MISCELÂNEA (THIAGO G.)', setor: 'Transporte', operacao: 'NET MISCELÂNEA (THIAGO G.)' },
-    { id: 26, name: 'ANA PAULA RODRIGUES SILVA', cargo: 'OPERADOR I', area: 'NET REVERSA (STEPHANY)', setor: 'Recebimento/Consolidação acessório', operacao: 'NET REVERSA (STEPHANY)' },
-    { id: 27, name: 'DECIA LARA MALVEIRA', cargo: 'OPERADOR II', area: 'NET REVERSA (STEPHANY)', setor: 'listagem', operacao: 'NET REVERSA (STEPHANY)' },
-    { id: 28, name: 'FLAVIA DE MARILAC SOUSA DE LELIS', cargo: 'OPERADOR I', area: 'NET REVERSA (STEPHANY)', setor: 'listagem', operacao: 'NET REVERSA (STEPHANY)' },
-    { id: 29, name: 'JACKSON JULIANO GUIMARÃES ARAÚJO', cargo: 'OPERADOR I', area: 'NET REVERSA (STEPHANY)', setor: 'Tratativa', operacao: 'NET REVERSA (STEPHANY)' },
-    { id: 30, name: 'JOAO GABRIEL DOS SANTOS RIBEIRO', cargo: 'ASSISTENTE OPERACIONAL', area: 'NET REVERSA (STEPHANY)', setor: 'Tratativa', operacao: 'NET REVERSA (STEPHANY)' },
-    { id: 31, name: 'SHAYENE DOS SANTOS JARDIM', cargo: 'ASSISTENTE OPERACIONAL', area: 'NET REVERSA (STEPHANY)', setor: 'listagem', operacao: 'NET REVERSA (STEPHANY)' },
-    { id: 32, name: 'STEPHANY RAYANNE RODRIGUES DA CUNHA', cargo: 'LIDER', area: 'NET REVERSA (STEPHANY)', setor: 'Liderança', operacao: 'NET REVERSA (STEPHANY)' },
-    { id: 33, name: 'RENATO SOUZA DE JESUS', cargo: 'OPERADOR II', area: 'NET TERMINAL (THIAGO G.)', setor: 'Separação/atendimento', operacao: 'NET TERMINAL (THIAGO G.)' },
-    { id: 34, name: 'GUSTAVO SILVA', cargo: 'OPERADOR I', area: 'NET TERMINAL (THIAGO G.)', setor: 'Separação acessório/atendimento', operacao: 'NET TERMINAL (THIAGO G.)' },
-    { id: 35, name: 'LILIA CRISTINA PATRICIO DOS SANTOS', cargo: 'OPERADOR I', area: 'NET TERMINAL (THIAGO G.)', setor: 'Separação/atendimento', operacao: 'NET TERMINAL (THIAGO G.)' },
-    { id: 36, name: 'MARYLLEN TALITA ELEOTERIO TEIXEIRA', cargo: 'OPERADOR I', area: 'NET TERMINAL (THIAGO G.)', setor: 'Listagem/recebimento', operacao: 'NET TERMINAL (THIAGO G.)' },
-    { id: 37, name: 'PAULA RIBEIRO DIAS', cargo: 'OPERADOR I', area: 'NET TERMINAL (THIAGO G.)', setor: 'Separação/atendimento', operacao: 'NET TERMINAL (THIAGO G.)' },
-    { id: 38, name: 'THAMIRES VALDEMIRO ALVES', cargo: 'OPERADOR I', area: 'NET TERMINAL (THIAGO G.)', setor: 'Listagem/recebimento', operacao: 'NET TERMINAL (THIAGO G.)' },
-    { id: 39, name: 'ANDERSON JOSÉ RIBEIRO SOUZA', cargo: 'OPERADOR I', area: 'OMR (DOUGLAS)', setor: 'Separação/atendimento/faturamento', operacao: 'OMR (DOUGLAS)' },
-    { id: 40, name: 'MATHEUS MORAIS DE PAULA', cargo: 'ASSISTENTE OPERACIONAL', area: 'OMR (DOUGLAS)', setor: 'Recebimento/Reversa', operacao: 'OMR (DOUGLAS)' },
-    { id: 41, name: 'WILLIAM FERNANDO DE OLIVEIRA', cargo: 'ASSISTENTE OPERACIONAL', area: 'OMR (DOUGLAS)', setor: 'Envio para reparo', operacao: 'OMR (DOUGLAS)' },
-    { id: 42, name: 'ENIL DE PINHO COSTA', cargo: 'OPERADOR DE EMPILHADEIRA', area: 'OPERADOR DE EMPILHADEIRA', setor: 'Operar Empilhadeira', operacao: 'COMPARTILHADO' },
   ];
 
   const operacoes = [...new Set(initialPeople.map(p => p.operacao))].sort();
-  const analistasGerais = initialPeople.filter(p => p.setor === 'Analista geral operação');
-  const [assignments, setAssignments] = useState({});
+
+  const [assignments, setAssignments] = useState(null);
   const [draggedPerson, setDraggedPerson] = useState(null);
   const [today, setToday] = useState(new Date().toISOString().split('T')[0]);
   const [justificativas, setJustificativas] = useState({});
@@ -57,71 +27,13 @@ const SectorAssignment = () => {
   const [viewMode, setViewMode] = useState('atribuir');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterOperacao, setFilterOperacao] = useState('todas');
-  const [historyData, setHistoryData] = useState([]);
-  const [selectedHistoryDate, setSelectedHistoryDate] = useState(null);
-  const [showHistory, setShowHistory] = useState(false);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-
-  // Carrega dados salvos
-  useEffect(() => {
-    loadData();
-  }, [today]);
 
   // Inicializa atribuições
   useEffect(() => {
-    if (Object.keys(assignments).length === 0) {
+    if (assignments === null) {
       initializeAssignments();
     }
   }, []);
-
-  const loadData = async () => {
-    try {
-      const saved = await window.storage.get(`assignment-${today}`);
-      if (saved && saved.value) {
-        const data = JSON.parse(saved.value);
-        setAssignments(data.assignments);
-        setJustificativas(data.justificativas || {});
-        setHasUnsavedChanges(false);
-      } else {
-        initializeAssignments();
-      }
-    } catch (error) {
-      initializeAssignments();
-    }
-    
-    loadHistory();
-  };
-
-  const loadHistory = async () => {
-    try {
-      const historyResult = await window.storage.list('assignment-');
-      if (historyResult && historyResult.keys) {
-        const dates = historyResult.keys
-          .map(key => key.replace('assignment-', ''))
-          .sort()
-          .reverse();
-        setHistoryData(dates);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar histórico:', error);
-    }
-  };
-
-  const saveData = async () => {
-    try {
-      const data = {
-        assignments,
-        justificativas,
-        timestamp: new Date().toISOString()
-      };
-      await window.storage.set(`assignment-${today}`, JSON.stringify(data));
-      setHasUnsavedChanges(false);
-      return true;
-    } catch (error) {
-      console.error('Erro ao salvar:', error);
-      return false;
-    }
-  };
 
   const initializeAssignments = () => {
     const init = { 'falta': [] };
@@ -132,10 +44,24 @@ const SectorAssignment = () => {
       init[person.setor].push(person);
     });
     setAssignments(init);
+    
     const expandAll = {};
     operacoes.forEach(op => expandAll[op] = true);
     setExpandedOps(expandAll);
   };
+
+  if (assignments === null) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin mb-4">
+            <Calendar className="w-12 h-12 text-blue-600 mx-auto" />
+          </div>
+          <p className="text-slate-600 text-lg">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleDragStart = (person, source) => {
     setDraggedPerson({ person, source });
@@ -158,14 +84,12 @@ const SectorAssignment = () => {
       return newAssignments;
     });
     setDraggedPerson(null);
-    setHasUnsavedChanges(true);
   };
 
   const handleReset = () => {
     if (confirm('Tem certeza que deseja restaurar todas as atribuições?')) {
       initializeAssignments();
       setJustificativas({});
-      setHasUnsavedChanges(true);
     }
   };
 
@@ -174,7 +98,6 @@ const SectorAssignment = () => {
       ...prev,
       [personId]: texto
     }));
-    setHasUnsavedChanges(true);
   };
 
   const handleExport = () => {
@@ -222,20 +145,6 @@ const SectorAssignment = () => {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  };
-
-  const loadHistoryDate = async (date) => {
-    try {
-      const saved = await window.storage.get(`assignment-${date}`);
-      if (saved && saved.value) {
-        const data = JSON.parse(saved.value);
-        setSelectedHistoryDate(date);
-        return data;
-      }
-    } catch (error) {
-      console.error('Erro ao carregar data:', error);
-    }
-    return null;
   };
 
   const getMetricasOperacao = (operacao) => {
@@ -363,71 +272,6 @@ const SectorAssignment = () => {
     );
   }
 
-  // History View
-  if (showHistory) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-3">
-              <History className="w-8 h-8 text-blue-600" />
-              <h1 className="text-3xl font-bold text-slate-800">Histórico de Atribuições</h1>
-            </div>
-            <button
-              onClick={() => setShowHistory(false)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-            >
-              ← Voltar
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {historyData.map(date => (
-              <button
-                key={date}
-                onClick={async () => {
-                  const data = await loadHistoryDate(date);
-                  if (data) {
-                    if (confirm(`Carregar atribuições de ${new Date(date).toLocaleDateString('pt-BR')}?`)) {
-                      setToday(date);
-                      setAssignments(data.assignments);
-                      setJustificativas(data.justificativas || {});
-                      setShowHistory(false);
-                      setHasUnsavedChanges(false);
-                    }
-                  }
-                }}
-                className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition border-l-4 border-blue-500 text-left"
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <Calendar className="w-6 h-6 text-blue-600" />
-                  <span className="font-bold text-slate-800">
-                    {new Date(date).toLocaleDateString('pt-BR', { 
-                      weekday: 'long', 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric' 
-                    })}
-                  </span>
-                </div>
-                <div className="text-sm text-slate-600">
-                  Clique para carregar esta atribuição
-                </div>
-              </button>
-            ))}
-          </div>
-
-          {historyData.length === 0 && (
-            <div className="text-center py-12">
-              <AlertCircle className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-              <p className="text-slate-600">Nenhum histórico encontrado</p>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
   // Main Assignment View
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4">
@@ -436,11 +280,6 @@ const SectorAssignment = () => {
           <div className="flex items-center gap-3">
             <Calendar className="w-8 h-8 text-blue-600" />
             <h1 className="text-2xl md:text-3xl font-bold text-slate-800">Atribuição Diária</h1>
-            {hasUnsavedChanges && (
-              <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full">
-                Não salvo
-              </span>
-            )}
           </div>
           <div className="flex items-center gap-3">
             <input
@@ -466,21 +305,11 @@ const SectorAssignment = () => {
             </div>
             <div className="flex gap-2 flex-wrap">
               <button
-                onClick={async () => {
-                  const saved = await saveData();
-                  if (saved) alert('Atribuição salva com sucesso!');
-                }}
+                onClick={() => alert('Dados salvos em memória (sessão atual)')}
                 className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition"
               >
                 <Download className="w-4 h-4" />
                 Salvar
-              </button>
-              <button
-                onClick={() => setShowHistory(true)}
-                className="flex items-center gap-2 px-3 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition"
-              >
-                <History className="w-4 h-4" />
-                Histórico
               </button>
               <button
                 onClick={() => setViewMode('dashboard')}
@@ -535,7 +364,6 @@ const SectorAssignment = () => {
           </div>
         </div>
 
-        {/* Seção de Analistas Gerais */}
         <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-lg shadow-md overflow-hidden mb-4 border-2 border-emerald-300">
           <div className="p-4 bg-white border-b-2 border-emerald-300">
             <div className="flex items-center gap-3">
@@ -558,11 +386,7 @@ const SectorAssignment = () => {
                     key={person.id}
                     draggable
                     onDragStart={() => handleDragStart(person, 'Analista geral operação')}
-                    className={`bg-white p-3 rounded-lg border-l-4 border-emerald-500 cursor-move hover:shadow-lg transition-all hover:scale-105 ${
-                      searchTerm && person.name.toLowerCase().includes(searchTerm.toLowerCase()) 
-                        ? 'ring-2 ring-yellow-400' 
-                        : ''
-                    }`}
+                    className="bg-white p-3 rounded-lg border-l-4 border-emerald-500 cursor-move hover:shadow-lg transition-all hover:scale-105"
                   >
                     <div className="font-semibold text-slate-800 text-sm line-clamp-2">{person.name}</div>
                     <div className="text-emerald-700 text-xs mt-1 font-medium">{person.cargo}</div>
@@ -624,11 +448,7 @@ const SectorAssignment = () => {
                                 key={person.id}
                                 draggable
                                 onDragStart={() => handleDragStart(person, setor)}
-                                className={`bg-white p-2 rounded border-l-3 border-blue-500 cursor-move hover:shadow-md transition text-xs ${
-                                  searchTerm && person.name.toLowerCase().includes(searchTerm.toLowerCase()) 
-                                    ? 'ring-2 ring-yellow-400' 
-                                    : ''
-                                }`}
+                                className="bg-white p-2 rounded border-l-3 border-blue-500 cursor-move hover:shadow-md transition text-xs"
                               >
                                 <div className="font-semibold text-slate-800 line-clamp-2">{person.name}</div>
                                 <div className="text-slate-600 text-xs mt-0.5 line-clamp-1">{person.cargo}</div>
@@ -658,11 +478,7 @@ const SectorAssignment = () => {
                   key={person.id}
                   draggable
                   onDragStart={() => handleDragStart(person, 'falta')}
-                  className={`bg-red-100 p-2 rounded border-l-3 border-red-500 cursor-move hover:shadow-md transition text-xs ${
-                    searchTerm && person.name.toLowerCase().includes(searchTerm.toLowerCase()) 
-                      ? 'ring-2 ring-yellow-400' 
-                      : ''
-                  }`}
+                  className="bg-red-100 p-2 rounded border-l-3 border-red-500 cursor-move hover:shadow-md transition text-xs"
                 >
                   <div className="font-semibold text-red-900 line-clamp-2">{person.name}</div>
                   <div className="text-red-700 text-xs mt-0.5">{person.cargo}</div>
