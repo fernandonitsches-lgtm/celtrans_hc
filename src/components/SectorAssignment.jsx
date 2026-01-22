@@ -3,12 +3,8 @@ import { Calendar, Download, RotateCcw, Users, ChevronDown, BarChart3, Search, F
 import { createClient } from '@supabase/supabase-js';
 
 // Inicializar Supabase
-const supabaseUrl = process.env.SUPABASE_URL || window.SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || window.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Supabase credentials not found. Check environment variables.');
-}
+const supabaseUrl = 'https://fgolrboqzvqqhyklsxsm.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnb2xyYm9xenZxcWh5a2xzeHNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0OTI3MzUsImV4cCI6MjA4NDA2ODczNX0.rFmuEoiJoPnnbCBQ308FAfj1eBQo9Kc0iJSyFPX-xj0';
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
