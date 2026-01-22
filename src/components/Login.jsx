@@ -43,7 +43,7 @@ const Login = ({ onLoginSuccess }) => {
       <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
         <div className="flex items-center justify-center mb-8">
           <LogIn className="w-8 h-8 text-blue-600 mr-3" />
-          <h1 className="text-3xl font-bold text-slate-800">Atribuição de Setores</h1>
+          <h1 className="text-3xl font-bold text-slate-800">HeadCount - Celtrans</h1>
         </div>
 
         {error && (
