@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Download, RotateCcw, Users, ChevronDown, BarChart3, Search, Filter, AlertCircle } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
+import ModalSalvar from './ModalSalvar';
 
 // Inicializar Supabase
 const supabaseUrl = 'https://fgolrboqzvqqhyklsxsm.supabase.co';
@@ -586,7 +587,7 @@ const SectorAssignment = () => {
         </div>
 
         <div className="bg-red-50 rounded-lg shadow-md border-4 border-dashed border-red-300 p-4 sticky bottom-0">
-          <h2 className="font-bold text-red-700 mb-3 text-lg">❌ FALTA ({filteredPeople(assignments['falta'])?.length || 0})</h2>
+          <h2 className="font-bold text-red-700 mb-3 text-lg">✖ FALTA ({filteredPeople(assignments['falta'])?.length || 0})</h2>
           <div
             onDragOver={handleDragOver}
             onDrop={() => handleDrop('falta')}
@@ -627,6 +628,17 @@ const SectorAssignment = () => {
             </div>
           )}
         </div>
+
+        {/* MODAL SALVAR */}
+        <ModalSalvar
+          isOpen={modalAberto}
+          onClose={() => setModalAberto(false)}
+          onConfirm={handleConfirmarSalvar}
+          assignments={assignments}
+          justificativas={justificativas}
+          onJustificativaChange={handleJustificativa}
+          data={today}
+        />
       </div>
     </div>
   );
