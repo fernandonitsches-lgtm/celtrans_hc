@@ -5,8 +5,5 @@
     "api/**/*.js": {
       "runtime": "nodejs18.x"
     }
-  },
-  "env": {
-    "SUPABASE_SERVICE_ROLE_KEY": "@supabase_service_role_key"
   }
 }
