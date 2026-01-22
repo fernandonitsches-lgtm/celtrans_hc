@@ -143,6 +143,69 @@ const SectorAssignment = () => {
     }));
   };
 
+  const handleSalvar = async () => {
+    try {
+      // 1. Salvar atribuições do dia
+      const atribuicoes = [];
+      Object.keys(assignments).forEach(setor => {
+        if (setor !== 'falta' && assignments[setor]) {
+          assignments[setor].forEach(person => {
+            atribuicoes.push({
+              data: today,
+              pessoa_id: person.id,
+              pessoa_nome: person.name,
+              setor: setor,
+              operacao: person.operacao,
+              cargo: person.cargo,
+              area: person.area
+            });
+          });
+        }
+      });
+
+      // 2. Salvar faltas do dia
+      const faltas = [];
+      if (assignments['falta'] && assignments['falta'].length > 0) {
+        assignments['falta'].forEach(person => {
+          faltas.push({
+            data: today,
+            pessoa_id: person.id,
+            pessoa_nome: person.name,
+            cargo: person.cargo,
+            operacao: person.operacao,
+            justificativa: justificativas[person.id] || ''
+          });
+        });
+      }
+
+      // Deletar registros antigos do dia para evitar duplicatas
+      await supabaseDb.from('atribuicoes_diarias').delete().eq('data', today);
+      await supabaseDb.from('faltas_diarias').delete().eq('data', today);
+
+      // Inserir novos registros
+      if (atribuicoes.length > 0) {
+        const { error: atribError } = await supabaseDb
+          .from('atribuicoes_diarias')
+          .insert(atribuicoes);
+        
+        if (atribError) throw atribError;
+      }
+
+      if (faltas.length > 0) {
+        const { error: faltaError } = await supabaseDb
+          .from('faltas_diarias')
+          .insert(faltas);
+        
+        if (faltaError) throw faltaError;
+      }
+
+      alert('✓ Dados salvos com sucesso para ' + today);
+    } catch (error) {
+      console.error('Erro ao salvar:', error);
+      alert('Erro ao salvar: ' + error.message);
+    }
+  };
+
   const handleExport = () => {
     let csv = 'Data,Operação,Setor,Nome,Cargo,Area\n';
     
@@ -348,7 +411,7 @@ const SectorAssignment = () => {
             </div>
             <div className="flex gap-2 flex-wrap">
               <button
-                onClick={() => alert('Dados salvos em memória (sessão atual)')}
+                onClick={handleSalvar}
                 className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition"
               >
                 <Download className="w-4 h-4" />
