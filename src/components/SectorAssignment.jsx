@@ -3,8 +3,13 @@ import { Calendar, Download, RotateCcw, Users, ChevronDown, BarChart3, Search, F
 import { createClient } from '@supabase/supabase-js';
 
 // Inicializar Supabase
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.SUPABASE_URL || window.SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || window.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Supabase credentials not found. Check environment variables.');
+}
+
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const SectorAssignment = () => {
