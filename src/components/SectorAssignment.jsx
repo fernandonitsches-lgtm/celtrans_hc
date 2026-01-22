@@ -1,24 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Download, RotateCcw, Users, ChevronDown, BarChart3, Search, Filter, History, AlertCircle } from 'lucide-react';
+import { Calendar, Download, RotateCcw, Users, ChevronDown, BarChart3, Search, Filter, AlertCircle } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
+
+// Inicializar Supabase
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 const SectorAssignment = () => {
-  const initialPeople = [
-    { id: 1, name: 'VITOR RAFAEL MENDES DE OLIVEIRA', cargo: 'ANALISTA OPERACIONAL JUNIOR', area: 'CLARO MÓVEL (MARIANA)', setor: 'Analista geral operação', operacao: 'ANALISTA GERAL' },
-    { id: 2, name: 'LUCIANO FERREIRA DA SILVA', cargo: 'ANALISTA OPERACIONAL SENIOR', area: 'CLARO MÓVEL (MARIANA)', setor: 'Analista geral operação', operacao: 'ANALISTA GERAL' },
-    { id: 3, name: 'ANTONIA JAQUELINE LOPES DOS SANTOS', cargo: 'OPERADOR I', area: 'CLARO MÓVEL (MARIANA)', setor: 'Separação/atendimento', operacao: 'CLARO MÓVEL (MARIANA)' },
-    { id: 4, name: 'CAROLINA SIMAO DA COSTA', cargo: 'OPERADOR I', area: 'CLARO MÓVEL (MARIANA)', setor: 'Faturamento Ovs/ faturamento MKT', operacao: 'CLARO MÓVEL (MARIANA)' },
-    { id: 5, name: 'FABIANO JUNIOR DOS SANTOS', cargo: 'ASSISTENTE OPERACIONAL', area: 'CLARO MÓVEL (MARIANA)', setor: 'Reversa', operacao: 'CLARO MÓVEL (MARIANA)' },
-    { id: 6, name: 'IARA PEREIRA DOS SANTOS', cargo: 'OPERADOR I', area: 'CLARO MÓVEL (MARIANA)', setor: 'Separação/atendimento', operacao: 'CLARO MÓVEL (MARIANA)' },
-    { id: 7, name: 'JENYFER LORRAINE DA SILVA BARBOSA', cargo: 'OPERADOR I', area: 'CLARO MÓVEL (MARIANA)', setor: 'Conferência/Transporte/expedição', operacao: 'CLARO MÓVEL (MARIANA)' },
-    { id: 8, name: 'MARIANA CRISTINA GERALDA DA SILVA ROSA', cargo: 'LIDER', area: 'CLARO MÓVEL (MARIANA)', setor: 'Liderança', operacao: 'CLARO MÓVEL (MARIANA)' },
-    { id: 9, name: 'THIAGO CONCESSO DE SOUZA', cargo: 'OPERADOR I', area: 'CLARO MÓVEL (MARIANA)', setor: 'Recebimento/Separação', operacao: 'CLARO MÓVEL (MARIANA)' },
-    { id: 10, name: 'GILVAM APARECIDO CARDOSO', cargo: 'OPERADOR ESPECIALIZADO', area: 'EBT (DOUGLAS)', setor: 'Recebimento/Reversa', operacao: 'EBT (DOUGLAS)' },
-    { id: 11, name: 'MATHEUS PAULA DE SOUZA', cargo: 'OPERADOR II', area: 'EBT (DOUGLAS)', setor: 'Separação/atendimento', operacao: 'EBT (DOUGLAS)' },
-    { id: 12, name: 'DOUGLAS ALVES DIAS', cargo: 'LIDER', area: 'EBT/OMR (DOUGLAS)', setor: 'Liderança', operacao: 'EBT (DOUGLAS)' },
-  ];
-
-  const operacoes = [...new Set(initialPeople.map(p => p.operacao))].sort();
-
+  const [initialPeople, setInitialPeople] = useState([]);
   const [assignments, setAssignments] = useState(null);
   const [draggedPerson, setDraggedPerson] = useState(null);
   const [today, setToday] = useState(new Date().toISOString().split('T')[0]);
@@ -27,17 +17,44 @@ const SectorAssignment = () => {
   const [viewMode, setViewMode] = useState('atribuir');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterOperacao, setFilterOperacao] = useState('todas');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [operacoes, setOperacoes] = useState([]);
 
-  // Inicializa atribuições
+  // Buscar dados do Supabase
   useEffect(() => {
-    if (assignments === null) {
-      initializeAssignments();
-    }
+    const fetchPeople = async () => {
+      try {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from('pessoas')
+          .select('*')
+          .order('operacao', { ascending: true });
+
+        if (error) {
+          throw error;
+        }
+
+        if (data) {
+          setInitialPeople(data);
+          const opsArray = [...new Set(data.map(p => p.operacao))].sort();
+          setOperacoes(opsArray);
+          initializeAssignments(data, opsArray);
+        }
+      } catch (err) {
+        console.error('Erro ao buscar dados:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPeople();
   }, []);
 
-  const initializeAssignments = () => {
+  const initializeAssignments = (people = initialPeople, ops = operacoes) => {
     const init = { 'falta': [] };
-    initialPeople.forEach(person => {
+    people.forEach(person => {
       if (!init[person.setor]) {
         init[person.setor] = [];
       }
@@ -46,9 +63,34 @@ const SectorAssignment = () => {
     setAssignments(init);
     
     const expandAll = {};
-    operacoes.forEach(op => expandAll[op] = true);
+    ops.forEach(op => expandAll[op] = true);
     setExpandedOps(expandAll);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin mb-4">
+            <Calendar className="w-12 h-12 text-blue-600 mx-auto" />
+          </div>
+          <p className="text-slate-600 text-lg">Carregando dados...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+        <div className="text-center bg-red-50 p-6 rounded-lg border-2 border-red-300">
+          <AlertCircle className="w-12 h-12 text-red-600 mx-auto mb-4" />
+          <p className="text-red-700 font-semibold mb-2">Erro ao conectar</p>
+          <p className="text-red-600 text-sm">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   if (assignments === null) {
     return (
@@ -57,7 +99,7 @@ const SectorAssignment = () => {
           <div className="animate-spin mb-4">
             <Calendar className="w-12 h-12 text-blue-600 mx-auto" />
           </div>
-          <p className="text-slate-600 text-lg">Carregando...</p>
+          <p className="text-slate-600 text-lg">Inicializando...</p>
         </div>
       </div>
     );
