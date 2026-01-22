@@ -1,21 +1,4 @@
-</div>
-      </div>
-
-      {/* Modal de Confirmação */}
-      <ModalSalvar
-        isOpen={modalAberto}
-        onClose={() => setModalAberto(false)}
-        onConfirm={handleConfirmarSalvar}
-        assignments={assignments}
-        justificativas={justificativas}
-        onJustificativaChange={handleJustificativa}
-        data={today}
-      />
-    </div>
-  );
-};
-
-export default SectorAssignment;import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar, Download, RotateCcw, Users, ChevronDown, BarChart3, Search, Filter, AlertCircle } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
@@ -233,7 +216,9 @@ const SectorAssignment = () => {
       alert('Erro ao salvar: ' + error.message);
     } finally {
       setSalvando(false);
+      setModalAberto(false);
     }
+  };
 
   const handleExport = () => {
     let csv = 'Data,Operação,Setor,Nome,Cargo,Area\n';
@@ -641,6 +626,7 @@ const SectorAssignment = () => {
               ))}
             </div>
           )}
+        </div>
       </div>
     </div>
   );
