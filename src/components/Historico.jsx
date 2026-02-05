@@ -15,6 +15,12 @@ const Historico = () => {
   const [filterData, setFilterData] = useState('');
   const [expandedDates, setExpandedDates] = useState({});
 
+  // ✅ CORREÇÃO: Função para formatar data corretamente
+  const formatarData = (dataString) => {
+    const [ano, mes, dia] = dataString.split('-');
+    return `${dia}/${mes}/${ano}`;
+  };
+
   useEffect(() => {
     fetchHistorico();
   }, []);
@@ -208,7 +214,7 @@ const Historico = () => {
                       <ChevronDown 
                         className={`w-5 h-5 transition-transform ${expandedDates[data] ? '' : '-rotate-90'}`}
                       />
-                      <span className="font-bold text-slate-800">{new Date(data).toLocaleDateString('pt-BR')}</span>
+                      <span className="font-bold text-slate-800">{formatarData(data)}</span>
                       <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
                         {(groupedAtribuicoes[data]?.length || 0) + (groupedFaltas[data]?.length || 0)} registros
                       </span>
