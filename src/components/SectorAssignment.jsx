@@ -591,7 +591,7 @@ const SectorAssignment = () => {
           <div
             onDragOver={handleDragOver}
             onDrop={() => handleDrop('falta')}
-            className="mb-4 pb-4 border-b-2 border-red-300 min-h-24"
+            className="min-h-24"
           >
             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
               {filteredPeople(assignments['falta'])?.map(person => (
@@ -607,26 +607,6 @@ const SectorAssignment = () => {
               ))}
             </div>
           </div>
-
-          {assignments['falta']?.length > 0 && (
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              <h3 className="font-semibold text-red-700 text-sm">Justificativas:</h3>
-              {assignments['falta'].map(person => (
-                <div key={person.id} className="bg-white p-2 rounded">
-                  <label className="block text-xs font-semibold text-slate-700 mb-1 line-clamp-1">
-                    {person.name}
-                  </label>
-                  <textarea
-                    value={justificativas[person.id] || ''}
-                    onChange={(e) => handleJustificativa(person.id, e.target.value)}
-                    placeholder="Justificativa..."
-                    className="w-full text-xs p-1.5 border border-red-300 rounded focus:outline-none focus:ring-2 focus:ring-red-500"
-                    rows="1"
-                  />
-                </div>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* MODAL SALVAR */}
