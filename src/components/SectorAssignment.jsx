@@ -153,7 +153,6 @@ const SectorAssignment = () => {
   const handleConfirmarSalvar = async (justificativasFinais, planoAcao) => {
     setSalvando(true);
     try {
-      // 1. Salvar atribuições do dia
       const atribuicoes = [];
       Object.keys(assignments).forEach(setor => {
         if (setor !== 'falta' && assignments[setor]) {
@@ -171,7 +170,6 @@ const SectorAssignment = () => {
         }
       });
 
-      // 2. Salvar faltas do dia
       const faltas = [];
       if (assignments['falta'] && assignments['falta'].length > 0) {
         assignments['falta'].forEach(person => {
@@ -187,16 +185,13 @@ const SectorAssignment = () => {
         });
       }
 
-      // Deletar registros antigos do dia para evitar duplicatas
       await supabase.from('atribuicoes_diarias').delete().eq('data', today);
       await supabase.from('faltas_diarias').delete().eq('data', today);
 
-      // Inserir novos registros
       if (atribuicoes.length > 0) {
         const { error: atribError } = await supabase
           .from('atribuicoes_diarias')
           .insert(atribuicoes);
-        
         if (atribError) throw atribError;
       }
 
@@ -204,13 +199,10 @@ const SectorAssignment = () => {
         const { error: faltaError } = await supabase
           .from('faltas_diarias')
           .insert(faltas);
-        
         if (faltaError) throw faltaError;
       }
 
-      // Atualizar estado local
       setJustificativas(justificativasFinais);
-
       alert('✓ Dados salvos com sucesso para ' + today);
     } catch (error) {
       console.error('Erro ao salvar:', error);
@@ -232,7 +224,6 @@ const SectorAssignment = () => {
           const escapedCargo = `"${person.cargo.replace(/"/g, '""')}"`;
           const escapedArea = `"${person.area.replace(/"/g, '""')}"`;
           const escapedOp = `"${person.operacao.replace(/"/g, '""')}"`;
-          
           csv += `${today},${escapedOp},${escapedSetor},${escapedName},${escapedCargo},${escapedArea}\n`;
         });
       }
@@ -247,21 +238,17 @@ const SectorAssignment = () => {
         const escapedArea = `"${person.area.replace(/"/g, '""')}"`;
         const escapedOp = `"${person.operacao.replace(/"/g, '""')}"`;
         const escapedJustificativa = `"${justificativa.replace(/"/g, '""')}"`;
-        
         csv += `${today},${escapedName},${escapedCargo},${escapedArea},${escapedOp},${escapedJustificativa}\n`;
       });
     }
 
     const bom = '\uFEFF';
-    const csvWithBom = bom + csv;
-    const blob = new Blob([csvWithBom], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
-    
     link.setAttribute('href', url);
     link.setAttribute('download', `atribuicao_${today.replace(/\//g, '-')}.csv`);
     link.style.visibility = 'hidden';
-    
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -272,7 +259,6 @@ const SectorAssignment = () => {
     const pessoasOp = initialPeople.filter(p => p.operacao === operacao);
     const faltasOp = assignments['falta']?.filter(p => p.operacao === operacao) || [];
     const absenteismo = pessoasOp.length > 0 ? ((faltasOp.length / pessoasOp.length) * 100).toFixed(1) : 0;
-    
     return {
       total: pessoasOp.length,
       faltas: faltasOp.length,
@@ -292,22 +278,23 @@ const SectorAssignment = () => {
       .sort();
   };
 
+  // ✅ CORRIGIDO: busca pessoas do setor pela lista original e verifica se ainda estão no assignments
   const pessoasDoSetorNaOperacao = (setor, operacao) => {
-    return assignments[setor]?.filter(p => p.operacao === operacao) || [];
+    const pessoasOriginais = initialPeople.filter(
+      p => p.setor === setor && p.operacao === operacao
+    );
+    return pessoasOriginais.filter(p =>
+      assignments[setor]?.some(a => a.id === p.id)
+    );
   };
 
   const filteredPeople = (people) => {
     if (!people) return [];
-    let filtered = people;
-    
-    if (searchTerm) {
-      filtered = filtered.filter(p => 
-        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.cargo.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-    
-    return filtered;
+    if (!searchTerm) return people;
+    return people.filter(p =>
+      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.cargo.toLowerCase().includes(searchTerm.toLowerCase())
+    );
   };
 
   // Dashboard View
@@ -351,7 +338,7 @@ const SectorAssignment = () => {
                       <span className="text-slate-600 text-sm">Absenteismo:</span>
                       <div className="flex items-center gap-2 mt-2">
                         <div className="flex-1 h-3 bg-slate-200 rounded-full overflow-hidden">
-                          <div 
+                          <div
                             className="h-full bg-gradient-to-r from-green-500 to-red-500"
                             style={{ width: `${metricas.absenteismo}%` }}
                           />
@@ -529,14 +516,18 @@ const SectorAssignment = () => {
                 className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition border-l-4 border-blue-500"
               >
                 <div className="flex items-center gap-3">
-                  <ChevronDown 
+                  <ChevronDown
                     className={`w-5 h-5 transition-transform ${expandedOps[operacao] ? '' : '-rotate-90'}`}
                   />
                   <span className="font-bold text-slate-700">{operacao}</span>
+                  {/* ✅ CORRIGIDO: contagem exclui quem está em falta */}
                   <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
                     {setoresPorOperacao(operacao).reduce((sum, setor) => {
                       const pessoasSetor = pessoasDoSetorNaOperacao(setor, operacao);
-                      return sum + filteredPeople(pessoasSetor).length;
+                      const semFalta = pessoasSetor.filter(p =>
+                        !assignments['falta']?.some(f => f.id === p.id)
+                      );
+                      return sum + filteredPeople(semFalta).length;
                     }, 0)} pessoas
                   </span>
                 </div>
@@ -547,9 +538,13 @@ const SectorAssignment = () => {
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
                     {setoresPorOperacao(operacao).map(setor => {
                       const pessoasSetor = pessoasDoSetorNaOperacao(setor, operacao);
-                      const filtered = filteredPeople(pessoasSetor);
+                      // ✅ CORRIGIDO: remove da exibição quem está em falta
+                      const semFalta = pessoasSetor.filter(p =>
+                        !assignments['falta']?.some(f => f.id === p.id)
+                      );
+                      const filtered = filteredPeople(semFalta);
                       if (searchTerm && filtered.length === 0) return null;
-                      
+
                       return (
                         <div
                           key={setor}
