@@ -296,14 +296,19 @@ const SectorAssignment = () => {
     return origem && origem.setor !== setorAtual;
   };
 
-  // Retorna pessoas do setor de origem que foram movidas para outro lugar
+  // Retorna pessoas do setor de origem que foram movidas para qualquer outro lugar
   // (para exibir o ghost card esmaecido no setor de origem)
   const pessoasAusentesDaOrigem = (setor, operacao) => {
     return initialPeople.filter(p => {
+      // Só interessa quem é originalmente deste setor/operacao
       if (p.setor !== setor || p.operacao !== operacao) return false;
-      const estaAqui = assignments[setor]?.some(a => a.id === p.id);
+      // Não mostra ghost se está em falta
       const estaEmFalta = assignments['falta']?.some(a => a.id === p.id);
-      return !estaAqui && !estaEmFalta;
+      if (estaEmFalta) return false;
+      // Verifica se a pessoa ainda está neste setor de origem
+      const estaNoOrigem = assignments[setor]?.some(a => a.id === p.id);
+      // Ghost aparece se NÃO está mais no setor de origem
+      return !estaNoOrigem;
     });
   };
 
@@ -593,7 +598,9 @@ const SectorAssignment = () => {
                         !assignments['falta']?.some(f => f.id === p.id)
                       );
                       const filtered = filteredPeople(semFalta);
-                      if (searchTerm && filtered.length === 0) return null;
+                      const ghosts = pessoasAusentesDaOrigem(setor, operacao);
+                      // Só oculta o setor se não tiver ninguém real E não tiver ghost
+                      if (searchTerm && filtered.length === 0 && ghosts.length === 0) return null;
 
                       return (
                         <div
@@ -632,7 +639,7 @@ const SectorAssignment = () => {
                               );
                             })}
                             {/* Ghost cards: pessoas que saíram do setor de origem */}
-                            {pessoasAusentesDaOrigem(setor, operacao).map(person => (
+                            {ghosts.map(person => (
                               <div
                                 key={`ghost-${person.id}`}
                                 title={`${person.name} está em outro setor`}
