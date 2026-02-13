@@ -278,10 +278,22 @@ const SectorAssignment = () => {
       .sort();
   };
 
-  // Retorna as pessoas que estão atualmente no setor (via assignments),
-  // filtrando pela operação original da pessoa para manter agrupamento visual correto.
-  const pessoasDoSetorNaOperacao = (setor, operacao) => {
+  // Retorna as pessoas que estão atualmente no setor (via assignments).
+  // Inclui TODOS, independente de operação de origem (visitantes incluídos).
+  const pessoasNoSetor = (setor) => {
+    return (assignments[setor] || []);
+  };
+
+  // Para a contagem do header da operação: conta só pessoas cuja operação ORIGINAL é essa
+  // (evita contar visitantes que vieram de outra operação)
+  const pessoasOriginaisDaOperacaoNoSetor = (setor, operacao) => {
     return (assignments[setor] || []).filter(p => p.operacao === operacao);
+  };
+
+  // Verifica se a pessoa está fora do seu setor de origem
+  const estaForaDaOrigem = (person, setorAtual) => {
+    const origem = initialPeople.find(p => p.id === person.id);
+    return origem && origem.setor !== setorAtual;
   };
 
   // Retorna pessoas do setor de origem que foram movidas para outro lugar
@@ -290,7 +302,6 @@ const SectorAssignment = () => {
     return initialPeople.filter(p => {
       if (p.setor !== setor || p.operacao !== operacao) return false;
       const estaAqui = assignments[setor]?.some(a => a.id === p.id);
-      // Não exibe ghost se a pessoa está em falta (já some do setor normalmente)
       const estaEmFalta = assignments['falta']?.some(a => a.id === p.id);
       return !estaAqui && !estaEmFalta;
     });
@@ -497,18 +508,31 @@ const SectorAssignment = () => {
               className="bg-emerald-50 rounded-lg border-2 border-dashed border-emerald-300 p-4 min-h-32"
             >
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                {filteredPeople(assignments['Analista geral operação'])?.map(person => (
-                  <div
-                    key={person.id}
-                    draggable
-                    onDragStart={() => handleDragStart(person, 'Analista geral operação')}
-                    className="bg-white p-3 rounded-lg border-l-4 border-emerald-500 cursor-move hover:shadow-lg transition-all hover:scale-105"
-                  >
-                    <div className="font-semibold text-slate-800 text-sm line-clamp-2">{person.name}</div>
-                    <div className="text-emerald-700 text-xs mt-1 font-medium">{person.cargo}</div>
-                    <div className="text-slate-500 text-xs mt-1">{person.operacao}</div>
-                  </div>
-                ))}
+                {filteredPeople(pessoasNoSetor('Analista geral operação'))?.map(person => {
+                  const visitante = estaForaDaOrigem(person, 'Analista geral operação');
+                  return (
+                    <div
+                      key={person.id}
+                      draggable
+                      onDragStart={() => handleDragStart(person, 'Analista geral operação')}
+                      title={visitante ? `${person.name} — veio de: ${initialPeople.find(p=>p.id===person.id)?.setor}` : person.name}
+                      className={`p-3 rounded-lg cursor-move hover:shadow-lg transition-all hover:scale-105 ${
+                        visitante
+                          ? 'bg-amber-50 border-l-4 border-amber-400 border border-amber-200'
+                          : 'bg-white border-l-4 border-emerald-500'
+                      }`}
+                    >
+                      <div className="font-semibold text-slate-800 text-sm line-clamp-2">{person.name}</div>
+                      <div className={`text-xs mt-1 font-medium ${visitante ? 'text-amber-600' : 'text-emerald-700'}`}>
+                        {person.cargo}
+                      </div>
+                      <div className="text-slate-500 text-xs mt-1">{person.operacao}</div>
+                      {visitante && (
+                        <div className="text-amber-600 text-xs mt-0.5 font-medium">↪ visitante</div>
+                      )}
+                    </div>
+                  );
+                })}
                 {/* Ghost cards de analistas que saíram do setor de origem */}
                 {initialPeople
                   .filter(p => p.setor === 'Analista geral operação')
@@ -546,11 +570,11 @@ const SectorAssignment = () => {
                     className={`w-5 h-5 transition-transform ${expandedOps[operacao] ? '' : '-rotate-90'}`}
                   />
                   <span className="font-bold text-slate-700">{operacao}</span>
-                  {/* ✅ CORRIGIDO: contagem exclui quem está em falta */}
+                  {/* Conta apenas pessoas cuja operação original é essa (exclui visitantes e faltas) */}
                   <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
                     {setoresPorOperacao(operacao).reduce((sum, setor) => {
-                      const pessoasSetor = pessoasDoSetorNaOperacao(setor, operacao);
-                      const semFalta = pessoasSetor.filter(p =>
+                      const daqui = pessoasOriginaisDaOperacaoNoSetor(setor, operacao);
+                      const semFalta = daqui.filter(p =>
                         !assignments['falta']?.some(f => f.id === p.id)
                       );
                       return sum + filteredPeople(semFalta).length;
@@ -563,9 +587,9 @@ const SectorAssignment = () => {
                 <div className="border-t border-slate-200 p-4">
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
                     {setoresPorOperacao(operacao).map(setor => {
-                      const pessoasSetor = pessoasDoSetorNaOperacao(setor, operacao);
-                      // ✅ CORRIGIDO: remove da exibição quem está em falta
-                      const semFalta = pessoasSetor.filter(p =>
+                      // Todos que estão no setor agora (incluindo visitantes de outras ops)
+                      const todas = pessoasNoSetor(setor);
+                      const semFalta = todas.filter(p =>
                         !assignments['falta']?.some(f => f.id === p.id)
                       );
                       const filtered = filteredPeople(semFalta);
@@ -585,23 +609,34 @@ const SectorAssignment = () => {
                             ({filtered.length})
                           </h4>
                           <div className="space-y-2">
-                            {filtered.map(person => (
-                              <div
-                                key={person.id}
-                                draggable
-                                onDragStart={() => handleDragStart(person, setor)}
-                                className="bg-white p-2 rounded border-l-3 border-blue-500 cursor-move hover:shadow-md transition text-xs"
-                              >
-                                <div className="font-semibold text-slate-800 line-clamp-2">{person.name}</div>
-                                <div className="text-slate-600 text-xs mt-0.5 line-clamp-1">{person.cargo}</div>
-                              </div>
-                            ))}
+                            {filtered.map(person => {
+                              const visitante = estaForaDaOrigem(person, setor);
+                              return (
+                                <div
+                                  key={person.id}
+                                  draggable
+                                  onDragStart={() => handleDragStart(person, setor)}
+                                  title={visitante ? `${person.name} — veio de: ${initialPeople.find(p=>p.id===person.id)?.setor}` : person.name}
+                                  className={`p-2 rounded cursor-move hover:shadow-md transition text-xs ${
+                                    visitante
+                                      ? 'bg-amber-50 border-l-4 border-amber-400 border border-amber-200'
+                                      : 'bg-white border-l-4 border-blue-500'
+                                  }`}
+                                >
+                                  <div className="font-semibold text-slate-800 line-clamp-2">{person.name}</div>
+                                  <div className="text-slate-600 text-xs mt-0.5 line-clamp-1">{person.cargo}</div>
+                                  {visitante && (
+                                    <div className="text-amber-600 text-xs mt-0.5 font-medium">↪ visitante</div>
+                                  )}
+                                </div>
+                              );
+                            })}
                             {/* Ghost cards: pessoas que saíram do setor de origem */}
                             {pessoasAusentesDaOrigem(setor, operacao).map(person => (
                               <div
                                 key={`ghost-${person.id}`}
                                 title={`${person.name} está em outro setor`}
-                                className="bg-white p-2 rounded border-l-3 border-blue-300 text-xs opacity-35 select-none"
+                                className="bg-white p-2 rounded border-l-4 border-blue-300 text-xs opacity-35 select-none"
                                 style={{ borderStyle: 'dashed' }}
                               >
                                 <div className="font-semibold text-slate-400 line-clamp-2">{person.name}</div>
