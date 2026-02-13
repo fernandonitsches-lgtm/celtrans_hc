@@ -278,14 +278,11 @@ const SectorAssignment = () => {
       .sort();
   };
 
-  // ✅ CORRIGIDO: busca pessoas do setor pela lista original e verifica se ainda estão no assignments
+  // Retorna as pessoas que estão atualmente no setor (via assignments),
+  // filtrando pela operação original da pessoa para manter agrupamento visual correto.
+  // Isso corrige o bug onde pessoas arrastadas para outro setor sumiam do limbo.
   const pessoasDoSetorNaOperacao = (setor, operacao) => {
-    const pessoasOriginais = initialPeople.filter(
-      p => p.setor === setor && p.operacao === operacao
-    );
-    return pessoasOriginais.filter(p =>
-      assignments[setor]?.some(a => a.id === p.id)
-    );
+    return (assignments[setor] || []).filter(p => p.operacao === operacao);
   };
 
   const filteredPeople = (people) => {
