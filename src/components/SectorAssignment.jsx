@@ -298,16 +298,15 @@ const SectorAssignment = () => {
 
   // Retorna pessoas do setor de origem que foram movidas para qualquer outro lugar
   // (para exibir o ghost card esmaecido no setor de origem)
-  const pessoasAusentesDaOrigem = (setor, operacao) => {
+  const pessoasAusentesDaOrigem = (setor) => {
     return initialPeople.filter(p => {
-      // Só interessa quem é originalmente deste setor/operacao
-      if (p.setor !== setor || p.operacao !== operacao) return false;
+      // Só interessa quem é originalmente deste setor (qualquer operação)
+      if (p.setor !== setor) return false;
       // Não mostra ghost se está em falta
       const estaEmFalta = assignments['falta']?.some(a => a.id === p.id);
       if (estaEmFalta) return false;
-      // Verifica se a pessoa ainda está neste setor de origem
-      const estaNoOrigem = assignments[setor]?.some(a => a.id === p.id);
       // Ghost aparece se NÃO está mais no setor de origem
+      const estaNoOrigem = assignments[setor]?.some(a => a.id === p.id);
       return !estaNoOrigem;
     });
   };
@@ -598,7 +597,7 @@ const SectorAssignment = () => {
                         !assignments['falta']?.some(f => f.id === p.id)
                       );
                       const filtered = filteredPeople(semFalta);
-                      const ghosts = pessoasAusentesDaOrigem(setor, operacao);
+                      const ghosts = pessoasAusentesDaOrigem(setor);
                       // Só oculta o setor se não tiver ninguém real E não tiver ghost
                       if (searchTerm && filtered.length === 0 && ghosts.length === 0) return null;
 
