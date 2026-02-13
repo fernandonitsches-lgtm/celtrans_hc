@@ -280,9 +280,20 @@ const SectorAssignment = () => {
 
   // Retorna as pessoas que estão atualmente no setor (via assignments),
   // filtrando pela operação original da pessoa para manter agrupamento visual correto.
-  // Isso corrige o bug onde pessoas arrastadas para outro setor sumiam do limbo.
   const pessoasDoSetorNaOperacao = (setor, operacao) => {
     return (assignments[setor] || []).filter(p => p.operacao === operacao);
+  };
+
+  // Retorna pessoas do setor de origem que foram movidas para outro lugar
+  // (para exibir o ghost card esmaecido no setor de origem)
+  const pessoasAusentesDaOrigem = (setor, operacao) => {
+    return initialPeople.filter(p => {
+      if (p.setor !== setor || p.operacao !== operacao) return false;
+      const estaAqui = assignments[setor]?.some(a => a.id === p.id);
+      // Não exibe ghost se a pessoa está em falta (já some do setor normalmente)
+      const estaEmFalta = assignments['falta']?.some(a => a.id === p.id);
+      return !estaAqui && !estaEmFalta;
+    });
   };
 
   const filteredPeople = (people) => {
@@ -498,6 +509,24 @@ const SectorAssignment = () => {
                     <div className="text-slate-500 text-xs mt-1">{person.operacao}</div>
                   </div>
                 ))}
+                {/* Ghost cards de analistas que saíram do setor de origem */}
+                {initialPeople
+                  .filter(p => p.setor === 'Analista geral operação')
+                  .filter(p => !assignments['Analista geral operação']?.some(a => a.id === p.id))
+                  .filter(p => !assignments['falta']?.some(a => a.id === p.id))
+                  .map(person => (
+                    <div
+                      key={`ghost-${person.id}`}
+                      title={`${person.name} está em outro setor`}
+                      className="bg-white p-3 rounded-lg border-l-4 border-emerald-300 opacity-35 select-none"
+                      style={{ borderStyle: 'dashed' }}
+                    >
+                      <div className="font-semibold text-slate-400 text-sm line-clamp-2">{person.name}</div>
+                      <div className="text-emerald-400 text-xs mt-1 font-medium italic">deslocado</div>
+                      <div className="text-slate-400 text-xs mt-1">{person.operacao}</div>
+                    </div>
+                  ))
+                }
               </div>
             </div>
           </div>
@@ -565,6 +594,18 @@ const SectorAssignment = () => {
                               >
                                 <div className="font-semibold text-slate-800 line-clamp-2">{person.name}</div>
                                 <div className="text-slate-600 text-xs mt-0.5 line-clamp-1">{person.cargo}</div>
+                              </div>
+                            ))}
+                            {/* Ghost cards: pessoas que saíram do setor de origem */}
+                            {pessoasAusentesDaOrigem(setor, operacao).map(person => (
+                              <div
+                                key={`ghost-${person.id}`}
+                                title={`${person.name} está em outro setor`}
+                                className="bg-white p-2 rounded border-l-3 border-blue-300 text-xs opacity-35 select-none"
+                                style={{ borderStyle: 'dashed' }}
+                              >
+                                <div className="font-semibold text-slate-400 line-clamp-2">{person.name}</div>
+                                <div className="text-slate-400 text-xs mt-0.5 line-clamp-1 italic">deslocado</div>
                               </div>
                             ))}
                           </div>
