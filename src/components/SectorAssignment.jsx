@@ -298,14 +298,12 @@ const SectorAssignment = () => {
 
   // Retorna pessoas do setor de origem que foram movidas para qualquer outro lugar
   // (para exibir o ghost card esmaecido no setor de origem)
+  // Inclui pessoas que foram para FALTA também
   const pessoasAusentesDaOrigem = (setor) => {
     return initialPeople.filter(p => {
-      // Só interessa quem é originalmente deste setor (qualquer operação)
+      // Só interessa quem é originalmente deste setor
       if (p.setor !== setor) return false;
-      // Não mostra ghost se está em falta
-      const estaEmFalta = assignments['falta']?.some(a => a.id === p.id);
-      if (estaEmFalta) return false;
-      // Ghost aparece se NÃO está mais no setor de origem
+      // Ghost aparece se NÃO está mais no setor de origem (mesmo que esteja em falta)
       const estaNoOrigem = assignments[setor]?.some(a => a.id === p.id);
       return !estaNoOrigem;
     });
@@ -532,26 +530,25 @@ const SectorAssignment = () => {
                       </div>
                       <div className="text-slate-500 text-xs mt-1">{person.operacao}</div>
                       {visitante && (
-                        <div className="text-amber-600 text-xs mt-0.5 font-medium">↪ visitante</div>
+                        <div className="text-amber-600 text-xs mt-0.5 font-medium">↪ remanejado</div>
                       )}
                     </div>
                   );
                 })}
-                {/* Ghost cards de analistas que saíram do setor de origem */}
+                {/* Ghost cards de analistas que saíram do setor de origem (incluindo quem foi pra falta) */}
                 {initialPeople
                   .filter(p => p.setor === 'Analista geral operação')
                   .filter(p => !assignments['Analista geral operação']?.some(a => a.id === p.id))
-                  .filter(p => !assignments['falta']?.some(a => a.id === p.id))
                   .map(person => (
                     <div
                       key={`ghost-${person.id}`}
                       title={`${person.name} está em outro setor`}
-                      className="bg-white p-3 rounded-lg border-l-4 border-emerald-300 opacity-35 select-none"
+                      className="bg-white p-3 rounded-lg border-l-4 border-emerald-300 opacity-50 select-none"
                       style={{ borderStyle: 'dashed' }}
                     >
-                      <div className="font-semibold text-slate-400 text-sm line-clamp-2">{person.name}</div>
-                      <div className="text-emerald-400 text-xs mt-1 font-medium italic">deslocado</div>
-                      <div className="text-slate-400 text-xs mt-1">{person.operacao}</div>
+                      <div className="font-semibold text-slate-600 text-sm line-clamp-2">{person.name}</div>
+                      <div className="text-emerald-500 text-xs mt-1 font-medium italic">deslocado</div>
+                      <div className="text-slate-500 text-xs mt-1">{person.operacao}</div>
                     </div>
                   ))
                 }
@@ -632,7 +629,7 @@ const SectorAssignment = () => {
                                   <div className="font-semibold text-slate-800 line-clamp-2">{person.name}</div>
                                   <div className="text-slate-600 text-xs mt-0.5 line-clamp-1">{person.cargo}</div>
                                   {visitante && (
-                                    <div className="text-amber-600 text-xs mt-0.5 font-medium">↪ visitante</div>
+                                    <div className="text-amber-600 text-xs mt-0.5 font-medium">↪ remanejado</div>
                                   )}
                                 </div>
                               );
@@ -642,11 +639,11 @@ const SectorAssignment = () => {
                               <div
                                 key={`ghost-${person.id}`}
                                 title={`${person.name} está em outro setor`}
-                                className="bg-white p-2 rounded border-l-4 border-blue-300 text-xs opacity-35 select-none"
+                                className="bg-white p-2 rounded border-l-4 border-blue-300 text-xs opacity-50 select-none"
                                 style={{ borderStyle: 'dashed' }}
                               >
-                                <div className="font-semibold text-slate-400 line-clamp-2">{person.name}</div>
-                                <div className="text-slate-400 text-xs mt-0.5 line-clamp-1 italic">deslocado</div>
+                                <div className="font-semibold text-slate-600 line-clamp-2">{person.name}</div>
+                                <div className="text-slate-500 text-xs mt-0.5 line-clamp-1 italic">deslocado</div>
                               </div>
                             ))}
                           </div>
