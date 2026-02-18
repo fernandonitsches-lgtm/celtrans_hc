@@ -11,7 +11,7 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // CONFIGURAR SEU EMAIL DE ADMIN AQUI
-const ADMIN_EMAIL = 'rtorres@celtrans.com.br'; // MUDE PARA SEU EMAIL
+const ADMIN_EMAIL = 'tiagoabdalla2013@gmail.com'; // MUDE PARA SEU EMAIL
 
 function App() {
   const [user, setUser] = useState(null);
