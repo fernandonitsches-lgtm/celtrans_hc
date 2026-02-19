@@ -81,24 +81,29 @@ function App() {
   // Se está logado e é admin, mostrar painel admin
   if (isAdmin && showAdmin) {
     return (
-      <div>
-        <div className="absolute top-4 right-4 flex items-center gap-3 bg-white px-4 py-2 rounded-lg shadow-md">
-          <span className="text-sm text-slate-600">
-            <span className="font-semibold text-purple-600">🔐 ADMIN</span>
-          </span>
-          <button
-            onClick={() => setShowAdmin(false)}
-            className="flex items-center gap-2 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition"
-          >
-            ← Voltar
-          </button>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition"
-          >
-            <LogOut className="w-4 h-4" />
-            Sair
-          </button>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+        {/* Header fixo */}
+        <div className="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm">
+          <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+            <span className="text-sm text-slate-600">
+              Logado como: <span className="font-semibold text-purple-600">🔐 {user.email}</span>
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowAdmin(false)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition"
+              >
+                ← Voltar
+              </button>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition"
+              >
+                <LogOut className="w-4 h-4" />
+                Sair
+              </button>
+            </div>
+          </div>
         </div>
         <AdminPanel />
       </div>
@@ -107,55 +112,77 @@ function App() {
 
   // Se está logado (user normal), mostrar sistema de atribuição
   return (
-    <div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       {showHistorico ? (
         <>
-          <div className="absolute top-4 right-4 flex items-center gap-3 bg-white px-4 py-2 rounded-lg shadow-md z-50">
-            <button
-              onClick={() => setShowHistorico(false)}
-              className="flex items-center gap-2 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition"
-            >
-              ← Voltar
-            </button>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition"
-            >
-              <LogOut className="w-4 h-4" />
-              Sair
-            </button>
+          {/* Header fixo - Histórico */}
+          <div className="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm">
+            <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+              <span className="text-sm text-slate-600">
+                Logado como: <span className="font-semibold">{user.email}</span>
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowHistorico(false)}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition"
+                >
+                  ← Voltar
+                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => { setShowHistorico(false); setShowAdmin(true); }}
+                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition"
+                  >
+                    <Settings className="w-4 h-4" />
+                    Admin
+                  </button>
+                )}
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Sair
+                </button>
+              </div>
+            </div>
           </div>
           <Historico />
         </>
       ) : (
         <>
-          <div className="absolute top-4 right-4 flex items-center gap-3 bg-white px-4 py-2 rounded-lg shadow-md z-50">
-            <span className="text-sm text-slate-600">
-              Logado como: <span className="font-semibold">{user.email}</span>
-            </span>
-            <button
-              onClick={() => setShowHistorico(true)}
-              className="flex items-center gap-2 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition"
-            >
-              <History className="w-4 h-4" />
-              Histórico
-            </button>
-            {isAdmin && (
-              <button
-                onClick={() => setShowAdmin(true)}
-                className="flex items-center gap-2 px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 transition"
-              >
-                <Settings className="w-4 h-4" />
-                Admin
-              </button>
-            )}
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition"
-            >
-              <LogOut className="w-4 h-4" />
-              Sair
-            </button>
+          {/* Header fixo - Atribuição */}
+          <div className="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm">
+            <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+              <span className="text-sm text-slate-600">
+                Logado como: <span className="font-semibold">{user.email}</span>
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowHistorico(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition"
+                >
+                  <History className="w-4 h-4" />
+                  Histórico
+                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => setShowAdmin(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition"
+                  >
+                    <Settings className="w-4 h-4" />
+                    Admin
+                  </button>
+                )}
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Sair
+                </button>
+              </div>
+            </div>
           </div>
           <SectorAssignment />
         </>
