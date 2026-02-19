@@ -58,7 +58,9 @@ const SectorAssignment = () => {
 
   const initializeAssignments = (people = initialPeople, ops = operacoes) => {
     const init = { 'falta': [] };
-    people.forEach(person => {
+    // Filtrar pessoas que NÃO estão de férias
+    const pessoasAtivas = people.filter(p => !p.de_ferias);
+    pessoasAtivas.forEach(person => {
       if (!init[person.setor]) {
         init[person.setor] = [];
       }
