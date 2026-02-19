@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Trash2, AlertCircle, CheckCircle, Loader, UserCog, Briefcase } from 'lucide-react';
+import { Users, Plus, Trash2, AlertCircle, CheckCircle, Loader, UserCog, Briefcase, TrendingDown } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import CadastroFuncionarios from './CadastroFuncionarios';
+import RankingFaltas from './RankingFaltas';
 
 const supabaseUrl = 'https://fgolrboqzvqqhyklsxsm.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnb2xyYm9xenZxcWh5a2xzeHNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0OTI3MzUsImV4cCI6MjA4NDA2ODczNX0.rFmuEoiJoPnnbCBQ308FAfj1eBQo9Kc0iJSyFPX-xj0';
@@ -109,6 +110,17 @@ const AdminPanel = () => {
               <Briefcase className="w-5 h-5" />
               Gestão de Funcionários
             </button>
+            <button
+              onClick={() => setAbaAtiva('ranking')}
+              className={`flex items-center gap-2 px-6 py-4 font-semibold transition ${
+                abaAtiva === 'ranking'
+                  ? 'text-purple-600 border-b-2 border-purple-600'
+                  : 'text-slate-600 hover:text-slate-800'
+              }`}
+            >
+              <TrendingDown className="w-5 h-5" />
+              Ranking de Faltas
+            </button>
           </div>
         </div>
 
@@ -187,6 +199,11 @@ const AdminPanel = () => {
         {/* Conteúdo da Aba Pessoas */}
         {abaAtiva === 'funcionarios' && (
           <CadastroFuncionarios />
+        )}
+
+        {/* Conteúdo da Aba Ranking */}
+        {abaAtiva === 'ranking' && (
+          <RankingFaltas />
         )}
       </div>
     </div>
