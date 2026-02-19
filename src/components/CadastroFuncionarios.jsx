@@ -22,6 +22,7 @@ const CadastroFuncionarios = () => {
     area: '',
     setor: '',
     operacao: '',
+    de_ferias: false,
   });
 
   useEffect(() => {
@@ -121,6 +122,7 @@ const CadastroFuncionarios = () => {
       area: funcionario.area || '',
       setor: funcionario.setor,
       operacao: funcionario.operacao,
+      de_ferias: funcionario.de_ferias || false,
     });
     setEditando(true);
     setModalAberto(true);
@@ -134,6 +136,7 @@ const CadastroFuncionarios = () => {
       area: '',
       setor: '',
       operacao: '',
+      de_ferias: false,
     });
     setEditando(false);
     setModalAberto(true);
@@ -149,6 +152,7 @@ const CadastroFuncionarios = () => {
       area: '',
       setor: '',
       operacao: '',
+      de_ferias: false,
     });
   };
 
@@ -236,13 +240,14 @@ const CadastroFuncionarios = () => {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Área</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Setor</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Operação</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">Status</th>
                 <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {filteredFuncionarios.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan="7" className="px-4 py-8 text-center text-slate-500">
                     {searchTerm ? 'Nenhum funcionário encontrado' : 'Nenhum funcionário cadastrado'}
                   </td>
                 </tr>
@@ -254,6 +259,17 @@ const CadastroFuncionarios = () => {
                     <td className="px-4 py-3 text-sm text-slate-600">{funcionario.area || '-'}</td>
                     <td className="px-4 py-3 text-sm text-slate-600">{funcionario.setor}</td>
                     <td className="px-4 py-3 text-sm text-slate-600">{funcionario.operacao}</td>
+                    <td className="px-4 py-3 text-center">
+                      {funcionario.de_ferias ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-700 text-xs font-semibold rounded-full">
+                          🏖️ Férias
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">
+                          ✓ Ativo
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-2">
                         <button
@@ -368,6 +384,21 @@ const CadastroFuncionarios = () => {
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                   />
+                </div>
+
+                <div className="md:col-span-2 bg-orange-50 p-4 rounded-lg border border-orange-200">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.de_ferias}
+                      onChange={(e) => setFormData({ ...formData, de_ferias: e.target.checked })}
+                      className="w-5 h-5 text-orange-600 border-orange-300 rounded focus:ring-2 focus:ring-orange-500"
+                    />
+                    <div className="flex-1">
+                      <span className="text-sm font-semibold text-slate-800">🏖️ Funcionário está de férias</span>
+                      <p className="text-xs text-slate-600 mt-1">Quando marcado, o funcionário não aparecerá na atribuição diária</p>
+                    </div>
+                  </label>
                 </div>
               </div>
 
