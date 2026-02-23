@@ -100,16 +100,10 @@ const RankingFaltas = () => {
   };
 
   const getMedalha = (posicao) => {
-    if (posicao === 0) return '🥇';
-    if (posicao === 1) return '🥈';
-    if (posicao === 2) return '🥉';
     return `${posicao + 1}º`;
   };
 
   const getCorPorPosicao = (posicao) => {
-    if (posicao === 0) return 'bg-yellow-50 border-yellow-300';
-    if (posicao === 1) return 'bg-slate-50 border-slate-300';
-    if (posicao === 2) return 'bg-orange-50 border-orange-300';
     return 'bg-white border-slate-200';
   };
 
