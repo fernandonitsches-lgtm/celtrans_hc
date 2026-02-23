@@ -4,6 +4,7 @@ import { X, AlertCircle, CheckCircle } from 'lucide-react';
 const ModalSalvar = ({ isOpen, onClose, onConfirm, assignments, justificativas, onJustificativaChange, data }) => {
   const [planoAcao, setPlanoAcao] = useState('');
   const [localJustificativas, setLocalJustificativas] = useState(justificativas);
+  const [impedimentos, setImpedimentos] = useState({});
   const [erro, setErro] = useState('');
 
   const faltas = assignments['falta'] || [];
@@ -20,13 +21,14 @@ const ModalSalvar = ({ isOpen, onClose, onConfirm, assignments, justificativas, 
     }
 
     // Chamar função de salvar com os dados
-    onConfirm(localJustificativas, planoAcao);
+    onConfirm(localJustificativas, planoAcao, impedimentos);
     handleClose();
   };
 
   const handleClose = () => {
     setPlanoAcao('');
     setLocalJustificativas(justificativas);
+    setImpedimentos({});
     setErro('');
     onClose();
   };
@@ -115,6 +117,35 @@ const ModalSalvar = ({ isOpen, onClose, onConfirm, assignments, justificativas, 
               <p className="text-green-700">
                 <span className="font-semibold">Excelente!</span> Nenhuma falta para este dia.
               </p>
+            </div>
+          )}
+
+          {/* O que atrapalhou - por pessoa */}
+          {faltas.length > 0 && (
+            <div>
+              <h3 className="font-semibold text-slate-800 mb-3 flex items-center gap-2">
+                📋 Relato de Ocorrências
+              </h3>
+              <div className="space-y-3 max-h-64 overflow-y-auto">
+                {faltas.map(person => (
+                  <div key={person.id} className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                    <label className="block font-semibold text-slate-800 mb-2 text-sm">
+                      {person.name}
+                      <span className="font-normal text-slate-600 ml-2">({person.cargo})</span>
+                    </label>
+                    <textarea
+                      value={impedimentos[person.id] || ''}
+                      onChange={(e) => setImpedimentos({
+                        ...impedimentos,
+                        [person.id]: e.target.value
+                      })}
+                      placeholder="Ex: Problema no transporte, questão pessoal, sem comunicação..."
+                      className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm resize-none"
+                      rows="2"
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
