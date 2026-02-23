@@ -13,6 +13,7 @@ const Historico = () => {
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterData, setFilterData] = useState('');
+  const [periodoFiltro, setPeriodoFiltro] = useState('dia'); // 'dia' | 'semana' | 'mes'
   const [expandedDates, setExpandedDates] = useState({});
 
   // ✅ CORREÇÃO: Função para formatar data corretamente
@@ -56,16 +57,47 @@ const Historico = () => {
     }
   };
 
+  const getDateRange = () => {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    if (periodoFiltro === 'dia') {
+      const dataHoje = hoje.toISOString().split('T')[0];
+      return { inicio: dataHoje, fim: dataHoje };
+    }
+    if (periodoFiltro === 'semana') {
+      const diaSemana = hoje.getDay();
+      const inicioSemana = new Date(hoje);
+      inicioSemana.setDate(hoje.getDate() - diaSemana);
+      const fimSemana = new Date(hoje);
+      fimSemana.setDate(hoje.getDate() + (6 - diaSemana));
+      return {
+        inicio: inicioSemana.toISOString().split('T')[0],
+        fim: fimSemana.toISOString().split('T')[0],
+      };
+    }
+    if (periodoFiltro === 'mes') {
+      const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+      const fimMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+      return {
+        inicio: inicioMes.toISOString().split('T')[0],
+        fim: fimMes.toISOString().split('T')[0],
+      };
+    }
+    return { inicio: null, fim: null };
+  };
+
+  const { inicio, fim } = getDateRange();
+
   const filteredAtribuicoes = atribuicoes.filter(a => {
     const matchSearch = a.pessoa_nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
                        a.setor.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchData = !filterData || a.data === filterData;
+    const matchData = !filterData ? (a.data >= inicio && a.data <= fim) : a.data === filterData;
     return matchSearch && matchData;
   });
 
   const filteredFaltas = faltas.filter(f => {
     const matchSearch = f.pessoa_nome.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchData = !filterData || f.data === filterData;
+    const matchData = !filterData ? (f.data >= inicio && f.data <= fim) : f.data === filterData;
     return matchSearch && matchData;
   });
 
@@ -162,6 +194,26 @@ const Historico = () => {
         )}
 
         <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+          {/* Filtro de Período */}
+          <div className="flex gap-2 mb-4">
+            {[
+              { label: 'Hoje', value: 'dia' },
+              { label: 'Esta Semana', value: 'semana' },
+              { label: 'Este Mês', value: 'mes' },
+            ].map(op => (
+              <button
+                key={op.value}
+                onClick={() => { setPeriodoFiltro(op.value); setFilterData(''); }}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
+                  periodoFiltro === op.value && !filterData
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {op.label}
+              </button>
+            ))}
+          </div>
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
