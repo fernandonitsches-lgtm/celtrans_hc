@@ -45,7 +45,7 @@ function App() {
       (event, session) => {
         const currentUser = session?.user || null;
         setUser(currentUser);
-        setIsAdmin(currentUser?.email === ADMIN_EMAIL);
+        setIsAdmin(ADMIN_EMAILS.includes(currentUser?.email));
       }
     );
 
