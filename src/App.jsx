@@ -11,7 +11,11 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // CONFIGURAR SEU EMAIL DE ADMIN AQUI
-const ADMIN_EMAIL = 'rtorres@celtrans.com.br'; // MUDE PARA SEU EMAIL
+const ADMIN_EMAILS = [
+  'tiagoabdalla2013@gmail.com',
+  'rtorres@celtrans.com.br',
+  'outroadmin@email.com',
+];  // MUDE PARA SEU EMAIL
 
 function App() {
   const [user, setUser] = useState(null);
@@ -26,7 +30,7 @@ function App() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         setUser(user);
-        setIsAdmin(user?.email === ADMIN_EMAIL);
+        setIsAdmin(ADMIN_EMAILS.includes(user?.email));
       } catch (error) {
         console.error('Erro ao verificar usuário:', error);
       } finally {
