@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Calendar, Download, RotateCcw, Users, ChevronDown, BarChart3, Search, Filter, AlertCircle } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import ModalSalvar from './ModalSalvar';
@@ -28,6 +28,10 @@ const SectorAssignment = () => {
   const [dashDados, setDashDados] = useState(null);
   const [dashLoading, setDashLoading] = useState(false);
 
+  // Refs para evitar loop infinito no useEffect do dashboard
+  const initialPeopleRef = useRef([]);
+  const operacoesRef = useRef([]);
+
   // Buscar dados do Supabase
   useEffect(() => {
     const fetchPeople = async () => {
@@ -46,6 +50,9 @@ const SectorAssignment = () => {
           setInitialPeople(data);
           const opsArray = [...new Set(data.map(p => p.operacao))].filter(op => op !== 'ANALISTA GERAL').sort();
           setOperacoes(opsArray);
+          // Atualizar refs para uso estável no dashboard
+          initialPeopleRef.current = data;
+          operacoesRef.current = opsArray;
           initializeAssignments(data, opsArray);
         }
       } catch (err) {
@@ -402,11 +409,10 @@ const SectorAssignment = () => {
   };
 
   useEffect(() => {
-    if (viewMode === 'dashboard' && initialPeople.length > 0 && operacoes.length > 0) {
-      fetchDashDados(dashPeriodo, initialPeople, operacoes);
+    if (viewMode === 'dashboard' && initialPeopleRef.current.length > 0 && operacoesRef.current.length > 0) {
+      fetchDashDados(dashPeriodo, initialPeopleRef.current, operacoesRef.current);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewMode, dashPeriodo]);
+  }, [viewMode, dashPeriodo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (viewMode === 'dashboard') {
     const periodos = [
