@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar, Download, RotateCcw, Users, ChevronDown, BarChart3, Search, Filter, AlertCircle } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import ModalSalvar from './ModalSalvar';
@@ -24,13 +24,6 @@ const SectorAssignment = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [operacoes, setOperacoes] = useState([]);
-  const [dashPeriodo, setDashPeriodo] = useState('dia');
-  const [dashDados, setDashDados] = useState(null);
-  const [dashLoading, setDashLoading] = useState(false);
-
-  // Refs para evitar loop infinito no useEffect do dashboard
-  const initialPeopleRef = useRef([]);
-  const operacoesRef = useRef([]);
 
   // Buscar dados do Supabase
   useEffect(() => {
@@ -48,11 +41,8 @@ const SectorAssignment = () => {
 
         if (data) {
           setInitialPeople(data);
-          const opsArray = [...new Set(data.map(p => p.operacao))].filter(op => op !== 'ANALISTA GERAL').sort();
+          const opsArray = [...new Set(data.map(p => p.operacao))].sort();
           setOperacoes(opsArray);
-          // Atualizar refs para uso estável no dashboard
-          initialPeopleRef.current = data;
-          operacoesRef.current = opsArray;
           initializeAssignments(data, opsArray);
         }
       } catch (err) {
@@ -69,7 +59,7 @@ const SectorAssignment = () => {
   const initializeAssignments = (people = initialPeople, ops = operacoes) => {
     const init = { 'falta': [] };
     // Filtrar pessoas que NÃO estão de férias
-    const pessoasAtivas = people.filter(p => !p.de_ferias && p.operacao !== 'ANALISTA GERAL');
+    const pessoasAtivas = people.filter(p => !p.de_ferias);
     pessoasAtivas.forEach(person => {
       if (!init[person.setor]) {
         init[person.setor] = [];
@@ -330,96 +320,8 @@ const SectorAssignment = () => {
     );
   };
 
-  const getDashDateRange = (periodo) => {
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    if (periodo === 'dia') {
-      const d = hoje.toISOString().split('T')[0];
-      return { inicio: d, fim: d };
-    }
-    if (periodo === 'semana') {
-      const ini = new Date(hoje); ini.setDate(hoje.getDate() - hoje.getDay());
-      const fim = new Date(hoje); fim.setDate(hoje.getDate() + (6 - hoje.getDay()));
-      return { inicio: ini.toISOString().split('T')[0], fim: fim.toISOString().split('T')[0] };
-    }
-    if (periodo === 'mes') {
-      const ini = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-      const fim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
-      return { inicio: ini.toISOString().split('T')[0], fim: fim.toISOString().split('T')[0] };
-    }
-  };
-
-  const fetchDashDados = async (periodo, pessoas, ops) => {
-    setDashLoading(true);
-    try {
-      const { inicio, fim } = getDashDateRange(periodo);
-      const { data: faltasData } = await supabase
-        .from('faltas_diarias')
-        .select('*')
-        .gte('data', inicio)
-        .lte('data', fim);
-      const { data: presData } = await supabase
-        .from('atribuicoes_diarias')
-        .select('*')
-        .gte('data', inicio)
-        .lte('data', fim);
-
-      // Dias únicos com registro
-      const diasUnicos = [...new Set([
-        ...(faltasData || []).map(f => f.data),
-        ...(presData || []).map(p => p.data)
-      ])];
-      const totalDias = diasUnicos.length || 1;
-
-      const metricasPorOp = {};
-      ops.forEach(op => {
-        const pessoasOp = pessoas.filter(p => p.operacao === op);
-        const faltasOp = (faltasData || []).filter(f => f.operacao === op);
-        // Pessoas únicas que faltaram
-        const pessoasComFalta = [...new Set(faltasOp.map(f => f.pessoa_id))];
-        const totalFaltasDias = faltasOp.length; // total ocorrências
-        const mediaFaltas = (totalFaltasDias / totalDias).toFixed(1);
-        const absenteismo = pessoasOp.length > 0
-          ? ((pessoasComFalta.length / pessoasOp.length) * 100).toFixed(1)
-          : 0;
-        metricasPorOp[op] = {
-          total: pessoasOp.length,
-          faltas: pessoasComFalta.length,
-          presentes: pessoasOp.length - pessoasComFalta.length,
-          mediaFaltas,
-          absenteismo: parseFloat(absenteismo),
-        };
-      });
-
-      const totalPessoas = pessoas.length;
-      const todasFaltas = [...new Set((faltasData || []).map(f => f.pessoa_id))];
-      setDashDados({
-        metricasPorOp,
-        totalPessoas,
-        totalFaltas: todasFaltas.length,
-        totalPresentes: totalPessoas - todasFaltas.length,
-        absenteismoGeral: totalPessoas > 0 ? ((todasFaltas.length / totalPessoas) * 100).toFixed(1) : 0,
-        totalDias,
-      });
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setDashLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (viewMode === 'dashboard' && initialPeopleRef.current.length > 0 && operacoesRef.current.length > 0) {
-      fetchDashDados(dashPeriodo, initialPeopleRef.current, operacoesRef.current);
-    }
-  }, [viewMode, dashPeriodo]); // eslint-disable-line react-hooks/exhaustive-deps
-
+  // Dashboard View
   if (viewMode === 'dashboard') {
-    const periodos = [
-      { label: 'Hoje', value: 'dia' },
-      { label: 'Esta Semana', value: 'semana' },
-      { label: 'Este Mês', value: 'mes' },
-    ];
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
         <div className="max-w-7xl mx-auto">
@@ -436,97 +338,66 @@ const SectorAssignment = () => {
             </button>
           </div>
 
-          {/* Filtro de Período */}
-          <div className="bg-white rounded-lg shadow-md p-4 mb-6 flex gap-3 items-center">
-            <span className="text-sm font-semibold text-slate-600 mr-2">Período:</span>
-            {periodos.map(op => (
-              <button
-                key={op.value}
-                onClick={() => setDashPeriodo(op.value)}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
-                  dashPeriodo === op.value
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                {op.label}
-              </button>
-            ))}
-            {dashLoading && <span className="text-sm text-slate-400 ml-2">Carregando...</span>}
-          </div>
-
-          {dashDados && !dashLoading ? (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-                {operacoes.map(operacao => {
-                  const metricas = dashDados.metricasPorOp[operacao] || {};
-                  return (
-                    <div key={operacao} className="bg-white rounded-lg shadow-md p-6 border-l-4 border-purple-500">
-                      <h3 className="font-bold text-slate-800 mb-4">{operacao}</h3>
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-600 text-sm">Total:</span>
-                          <span className="font-semibold text-slate-800">{metricas.total}</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+            {operacoes.map(operacao => {
+              const metricas = getMetricasOperacao(operacao);
+              return (
+                <div key={operacao} className="bg-white rounded-lg shadow-md p-6 border-l-4 border-purple-500">
+                  <h3 className="font-bold text-slate-800 mb-4">{operacao}</h3>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600 text-sm">Total:</span>
+                      <span className="font-semibold text-slate-800">{metricas.total}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600 text-sm">Presentes:</span>
+                      <span className="font-semibold text-green-600">{metricas.presentes}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600 text-sm">Faltas:</span>
+                      <span className="font-semibold text-red-600">{metricas.faltas}</span>
+                    </div>
+                    <div className="pt-3 border-t border-slate-200">
+                      <span className="text-slate-600 text-sm">Absenteismo:</span>
+                      <div className="flex items-center gap-2 mt-2">
+                        <div className="flex-1 h-3 bg-slate-200 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-green-500 to-red-500"
+                            style={{ width: `${metricas.absenteismo}%` }}
+                          />
                         </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-600 text-sm">Presentes:</span>
-                          <span className="font-semibold text-green-600">{metricas.presentes}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-600 text-sm">Faltas:</span>
-                          <span className="font-semibold text-red-600">{metricas.faltas}</span>
-                        </div>
-                        {dashPeriodo !== 'dia' && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-slate-600 text-sm">Média de faltas/dia:</span>
-                            <span className="font-semibold text-orange-600">{metricas.mediaFaltas}</span>
-                          </div>
-                        )}
-                        <div className="pt-3 border-t border-slate-200">
-                          <span className="text-slate-600 text-sm">Absenteísmo:</span>
-                          <div className="flex items-center gap-2 mt-2">
-                            <div className="flex-1 h-3 bg-slate-200 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-gradient-to-r from-green-500 to-red-500"
-                                style={{ width: `${metricas.absenteismo}%` }}
-                              />
-                            </div>
-                            <span className="font-semibold text-slate-800">{metricas.absenteismo}%</span>
-                          </div>
-                        </div>
+                        <span className="font-semibold text-slate-800">{metricas.absenteismo}%</span>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <h2 className="font-bold text-slate-800 mb-4">Resumo Geral</h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-blue-600">{dashDados.totalPessoas}</div>
-                    <div className="text-sm text-slate-600 mt-1">Total de Pessoas</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-green-600">{dashDados.totalPresentes}</div>
-                    <div className="text-sm text-slate-600 mt-1">Presentes</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-red-600">{dashDados.totalFaltas}</div>
-                    <div className="text-sm text-slate-600 mt-1">Com Falta</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-purple-600">{dashDados.absenteismoGeral}%</div>
-                    <div className="text-sm text-slate-600 mt-1">Absenteísmo Geral</div>
                   </div>
                 </div>
+              );
+            })}
+          </div>
+
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="font-bold text-slate-800 mb-4">Resumo Geral</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-blue-600">{initialPeople.length}</div>
+                <div className="text-sm text-slate-600 mt-1">Total de Pessoas</div>
               </div>
-            </>
-          ) : !dashLoading ? (
-            <div className="bg-white rounded-lg shadow-md p-8 text-center text-slate-500">
-              Nenhum dado encontrado para o período selecionado.
+              <div className="text-center">
+                <div className="text-3xl font-bold text-green-600">{totalAtribuido}</div>
+                <div className="text-sm text-slate-600 mt-1">Presentes</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-red-600">{assignments['falta']?.length || 0}</div>
+                <div className="text-sm text-slate-600 mt-1">Faltas</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-purple-600">
+                  {((assignments['falta']?.length || 0) / initialPeople.length * 100).toFixed(1)}%
+                </div>
+                <div className="text-sm text-slate-600 mt-1">Absenteismo Geral</div>
+              </div>
             </div>
-          ) : null}
+          </div>
         </div>
       </div>
     );
@@ -620,6 +491,70 @@ const SectorAssignment = () => {
                   <option key={op} value={op}>{op}</option>
                 ))}
               </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-lg shadow-md overflow-hidden mb-4 border-2 border-emerald-300">
+          <div className="p-4 bg-white border-b-2 border-emerald-300">
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse"></div>
+              <span className="font-bold text-slate-800 text-lg">👔 ANALISTAS GERAIS DE OPERAÇÃO</span>
+              <span className="text-xs bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full font-semibold">
+                {filteredPeople(assignments['Analista geral operação'])?.length || 0} analistas
+              </span>
+            </div>
+          </div>
+          <div className="p-4">
+            <div
+              onDragOver={handleDragOver}
+              onDrop={() => handleDrop('Analista geral operação')}
+              className="bg-emerald-50 rounded-lg border-2 border-dashed border-emerald-300 p-4 min-h-32"
+            >
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                {filteredPeople(pessoasNoSetor('Analista geral operação'))?.map(person => {
+                  const visitante = estaForaDaOrigem(person, 'Analista geral operação');
+                  return (
+                    <div
+                      key={person.id}
+                      draggable
+                      onDragStart={() => handleDragStart(person, 'Analista geral operação')}
+                      title={visitante ? `${person.name} — veio de: ${initialPeople.find(p=>p.id===person.id)?.setor}` : person.name}
+                      className={`p-3 rounded-lg cursor-move hover:shadow-lg transition-all hover:scale-105 ${
+                        visitante
+                          ? 'bg-amber-50 border-l-4 border-amber-400 border border-amber-200'
+                          : 'bg-white border-l-4 border-emerald-500'
+                      }`}
+                    >
+                      <div className="font-semibold text-slate-800 text-sm line-clamp-2">{person.name}</div>
+                      <div className={`text-xs mt-1 font-medium ${visitante ? 'text-amber-600' : 'text-emerald-700'}`}>
+                        {person.cargo}
+                      </div>
+                      <div className="text-slate-500 text-xs mt-1">{person.operacao}</div>
+                      {visitante && (
+                        <div className="text-amber-600 text-xs mt-0.5 font-medium">↪ remanejado</div>
+                      )}
+                    </div>
+                  );
+                })}
+                {/* Ghost cards de analistas que saíram do setor de origem (incluindo quem foi pra falta) */}
+                {initialPeople
+                  .filter(p => p.setor === 'Analista geral operação')
+                  .filter(p => !assignments['Analista geral operação']?.some(a => a.id === p.id))
+                  .map(person => (
+                    <div
+                      key={`ghost-${person.id}`}
+                      title={`${person.name} está em outro setor`}
+                      className="bg-white p-3 rounded-lg border-l-4 border-emerald-300 opacity-50 select-none"
+                      style={{ borderStyle: 'dashed' }}
+                    >
+                      <div className="font-semibold text-slate-600 text-sm line-clamp-2">{person.name}</div>
+                      <div className="text-emerald-500 text-xs mt-1 font-medium italic">deslocado</div>
+                      <div className="text-slate-500 text-xs mt-1">{person.operacao}</div>
+                    </div>
+                  ))
+                }
+              </div>
             </div>
           </div>
         </div>
