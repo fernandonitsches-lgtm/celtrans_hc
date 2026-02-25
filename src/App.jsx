@@ -14,7 +14,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const ADMIN_EMAILS = [
   'tiagoabdalla2013@gmail.com',
   'rtorres@celtrans.com.br',
-  'outroadmin@email.com',
+  'rferreira@celtrans.com.br',
 ];  // MUDE PARA SEU EMAIL
 
 function App() {
