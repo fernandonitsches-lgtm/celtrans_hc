@@ -405,7 +405,8 @@ const SectorAssignment = () => {
     if (viewMode === 'dashboard' && initialPeople.length > 0 && operacoes.length > 0) {
       fetchDashDados(dashPeriodo, initialPeople, operacoes);
     }
-  }, [viewMode, dashPeriodo, initialPeople, operacoes]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, dashPeriodo]);
 
   if (viewMode === 'dashboard') {
     const periodos = [
