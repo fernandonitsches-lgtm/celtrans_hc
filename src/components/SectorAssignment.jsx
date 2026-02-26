@@ -58,8 +58,8 @@ const SectorAssignment = () => {
 
   const initializeAssignments = (people = initialPeople, ops = operacoes) => {
     const init = { 'falta': [] };
-    // Filtrar pessoas que NÃO estão de férias
-    const pessoasAtivas = people.filter(p => !p.de_ferias);
+    // Filtrar pessoas que NÃO estão de férias e NÃO são do setor Analista geral operação
+    const pessoasAtivas = people.filter(p => !p.de_ferias && p.setor !== 'Analista geral operação');
     pessoasAtivas.forEach(person => {
       if (!init[person.setor]) {
         init[person.setor] = [];
@@ -495,65 +495,6 @@ const SectorAssignment = () => {
           </div>
         </div>
 
-        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-lg shadow-md overflow-hidden mb-4 border-2 border-emerald-300">
-          <div className="p-4 bg-white border-b-2 border-emerald-300">
-            <div className="flex items-center gap-3">
-              <div className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse"></div>
-            </div>
-          </div>
-          <div className="p-4">
-            <div
-              onDragOver={handleDragOver}
-              onDrop={() => handleDrop('Analista geral operação')}
-              className="bg-emerald-50 rounded-lg border-2 border-dashed border-emerald-300 p-4 min-h-32"
-            >
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                {filteredPeople(pessoasNoSetor('Analista geral operação'))?.map(person => {
-                  const visitante = estaForaDaOrigem(person, 'Analista geral operação');
-                  return (
-                    <div
-                      key={person.id}
-                      draggable
-                      onDragStart={() => handleDragStart(person, 'Analista geral operação')}
-                      title={visitante ? `${person.name} — veio de: ${initialPeople.find(p=>p.id===person.id)?.setor}` : person.name}
-                      className={`p-3 rounded-lg cursor-move hover:shadow-lg transition-all hover:scale-105 ${
-                        visitante
-                          ? 'bg-amber-50 border-l-4 border-amber-400 border border-amber-200'
-                          : 'bg-white border-l-4 border-emerald-500'
-                      }`}
-                    >
-                      <div className="font-semibold text-slate-800 text-sm line-clamp-2">{person.name}</div>
-                      <div className={`text-xs mt-1 font-medium ${visitante ? 'text-amber-600' : 'text-emerald-700'}`}>
-                        {person.cargo}
-                      </div>
-                      <div className="text-slate-500 text-xs mt-1">{person.operacao}</div>
-                      {visitante && (
-                        <div className="text-amber-600 text-xs mt-0.5 font-medium">↪ remanejado</div>
-                      )}
-                    </div>
-                  );
-                })}
-                {/* Ghost cards de analistas que saíram do setor de origem (incluindo quem foi pra falta) */}
-                {initialPeople
-                  .filter(p => p.setor === 'Analista geral operação')
-                  .filter(p => !assignments['Analista geral operação']?.some(a => a.id === p.id))
-                  .map(person => (
-                    <div
-                      key={`ghost-${person.id}`}
-                      title={`${person.name} está em outro setor`}
-                      className="bg-white p-3 rounded-lg border-l-4 border-emerald-300 opacity-50 select-none"
-                      style={{ borderStyle: 'dashed' }}
-                    >
-                      <div className="font-semibold text-slate-600 text-sm line-clamp-2">{person.name}</div>
-                      <div className="text-emerald-500 text-xs mt-1 font-medium italic">deslocado</div>
-                      <div className="text-slate-500 text-xs mt-1">{person.operacao}</div>
-                    </div>
-                  ))
-                }
-              </div>
-            </div>
-          </div>
-        </div>
 
         <div className="space-y-4 mb-6">
           {operacoes
