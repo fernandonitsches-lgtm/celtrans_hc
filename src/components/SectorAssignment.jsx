@@ -498,6 +498,7 @@ const SectorAssignment = () => {
 
         <div className="space-y-4 mb-6">
           {operacoes
+            .filter(op => op !== 'ANALISTA GERAL')
             .filter(op => filterOperacao === 'todas' || op === filterOperacao)
             .map(operacao => (
             <div key={operacao} className="bg-white rounded-lg shadow-md overflow-hidden">
