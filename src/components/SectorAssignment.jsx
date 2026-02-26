@@ -499,10 +499,6 @@ const SectorAssignment = () => {
           <div className="p-4 bg-white border-b-2 border-emerald-300">
             <div className="flex items-center gap-3">
               <div className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse"></div>
-              <span className="font-bold text-slate-800 text-lg">👔 ANALISTAS GERAIS DE OPERAÇÃO</span>
-              <span className="text-xs bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full font-semibold">
-                {filteredPeople(assignments['Analista geral operação'])?.length || 0} analistas
-              </span>
             </div>
           </div>
           <div className="p-4">
