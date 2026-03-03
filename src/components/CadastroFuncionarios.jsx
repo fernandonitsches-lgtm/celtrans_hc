@@ -25,6 +25,22 @@ const CadastroFuncionarios = () => {
     de_ferias: false,
   });
 
+  // Listas de seleção derivadas dos dados do banco
+  const opcoesOperacao = [...new Set(funcionarios.map(f => f.operacao).filter(Boolean))].sort();
+  const opcoesCargo = [...new Set(funcionarios.map(f => f.cargo).filter(Boolean))].sort();
+  const opcoesSetor = [...new Set(
+    funcionarios
+      .filter(f => !formData.operacao || f.operacao === formData.operacao)
+      .map(f => f.setor)
+      .filter(Boolean)
+  )].sort();
+  const opcoesArea = [...new Set(
+    funcionarios
+      .filter(f => !formData.operacao || f.operacao === formData.operacao)
+      .map(f => f.area)
+      .filter(Boolean)
+  )].sort();
+
   useEffect(() => {
     fetchFuncionarios();
   }, []);
@@ -335,55 +351,59 @@ const CadastroFuncionarios = () => {
                   <label className="block text-sm font-semibold text-slate-700 mb-1">
                     Cargo *
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={formData.cargo}
                     onChange={(e) => setFormData({ ...formData, cargo: e.target.value })}
-                    placeholder="Ex: Operador de Produção"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                     required
-                  />
+                  >
+                    <option value="">Selecione o cargo...</option>
+                    {opcoesCargo.map(op => <option key={op} value={op}>{op}</option>)}
+                  </select>
                 </div>
 
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">
                     Área
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={formData.area}
                     onChange={(e) => setFormData({ ...formData, area: e.target.value })}
-                    placeholder="Ex: Produção"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="">Selecione a área...</option>
+                    {opcoesArea.map(op => <option key={op} value={op}>{op}</option>)}
+                  </select>
                 </div>
 
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">
                     Setor *
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={formData.setor}
                     onChange={(e) => setFormData({ ...formData, setor: e.target.value })}
-                    placeholder="Ex: Montagem"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                     required
-                  />
+                  >
+                    <option value="">Selecione o setor...</option>
+                    {opcoesSetor.map(op => <option key={op} value={op}>{op}</option>)}
+                  </select>
                 </div>
 
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">
                     Operação *
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={formData.operacao}
-                    onChange={(e) => setFormData({ ...formData, operacao: e.target.value })}
-                    placeholder="Ex: Turno 1"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={(e) => setFormData({ ...formData, operacao: e.target.value, setor: '', area: '' })}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                     required
-                  />
+                  >
+                    <option value="">Selecione a operação...</option>
+                    {opcoesOperacao.map(op => <option key={op} value={op}>{op}</option>)}
+                  </select>
                 </div>
 
                 <div className="md:col-span-2 bg-orange-50 p-4 rounded-lg border border-orange-200">
