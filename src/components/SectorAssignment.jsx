@@ -41,7 +41,7 @@ const SectorAssignment = () => {
 
         if (data) {
           setInitialPeople(data);
-          const opsArray = [...new Set(data.map(p => p.operacao))].sort();
+          const opsArray = [...new Set(data.map(p => p.operacao))].filter(op => op !== 'ANALISTA GERAL').sort();
           setOperacoes(opsArray);
           initializeAssignments(data, opsArray);
         }
@@ -56,18 +56,17 @@ const SectorAssignment = () => {
     fetchPeople();
   }, []);
 
+  const makeKey = (op, st) => `${op}||${st}`;
+
   const initializeAssignments = (people = initialPeople, ops = operacoes) => {
     const init = { 'falta': [] };
-    // Filtrar pessoas que NÃO estão de férias e NÃO são do setor Analista geral operação
-    const pessoasAtivas = people.filter(p => !p.de_ferias && p.setor !== 'Analista geral operação');
+    const pessoasAtivas = people.filter(p => !p.de_ferias && p.operacao !== 'ANALISTA GERAL');
     pessoasAtivas.forEach(person => {
-      if (!init[person.setor]) {
-        init[person.setor] = [];
-      }
-      init[person.setor].push(person);
+      const key = makeKey(person.operacao, person.setor);
+      if (!init[key]) init[key] = [];
+      init[key].push(person);
     });
     setAssignments(init);
-    
     const expandAll = {};
     ops.forEach(op => expandAll[op] = true);
     setExpandedOps(expandAll);
@@ -156,9 +155,10 @@ const SectorAssignment = () => {
     setSalvando(true);
     try {
       const atribuicoes = [];
-      Object.keys(assignments).forEach(setor => {
-        if (setor !== 'falta' && assignments[setor]) {
-          assignments[setor].forEach(person => {
+      Object.keys(assignments).forEach(key => {
+        if (key !== 'falta' && assignments[key]) {
+          const setor = key.includes('||') ? key.split('||')[1] : key;
+          assignments[key].forEach(person => {
             atribuicoes.push({
               data: today,
               pessoa_id: person.id,
@@ -218,9 +218,10 @@ const SectorAssignment = () => {
   const handleExport = () => {
     let csv = 'Data,Operação,Setor,Nome,Cargo,Area\n';
     
-    Object.keys(assignments).forEach(setor => {
-      if (setor !== 'falta' && assignments[setor]) {
-        assignments[setor].forEach(person => {
+    Object.keys(assignments).forEach(key => {
+      if (key !== 'falta' && assignments[key]) {
+        const setor = key.includes('||') ? key.split('||')[1] : key;
+        assignments[key].forEach(person => {
           const escapedName = `"${person.name.replace(/"/g, '""')}"`;
           const escapedSetor = `"${setor.replace(/"/g, '""')}"`;
           const escapedCargo = `"${person.cargo.replace(/"/g, '""')}"`;
@@ -280,33 +281,24 @@ const SectorAssignment = () => {
       .sort();
   };
 
-  // Retorna as pessoas que estão atualmente no setor (via assignments).
-  // Inclui TODOS, independente de operação de origem (visitantes incluídos).
-  const pessoasNoSetor = (setor) => {
-    return (assignments[setor] || []);
+  const pessoasNoSetor = (operacao, setor) => {
+    return (assignments[makeKey(operacao, setor)] || []);
   };
 
-  // Para a contagem do header da operação: conta só pessoas cuja operação ORIGINAL é essa
-  // (evita contar visitantes que vieram de outra operação)
   const pessoasOriginaisDaOperacaoNoSetor = (setor, operacao) => {
-    return (assignments[setor] || []).filter(p => p.operacao === operacao);
+    return (assignments[makeKey(operacao, setor)] || []);
   };
 
-  // Verifica se a pessoa está fora do seu setor de origem
-  const estaForaDaOrigem = (person, setorAtual) => {
+  const estaForaDaOrigem = (person, operacaoAtual, setorAtual) => {
     const origem = initialPeople.find(p => p.id === person.id);
-    return origem && origem.setor !== setorAtual;
+    return origem && (origem.setor !== setorAtual || origem.operacao !== operacaoAtual);
   };
 
-  // Retorna pessoas do setor de origem que foram movidas para qualquer outro lugar
-  // (para exibir o ghost card esmaecido no setor de origem)
-  // Inclui pessoas que foram para FALTA também
-  const pessoasAusentesDaOrigem = (setor) => {
+  const pessoasAusentesDaOrigem = (operacao, setor) => {
+    const key = makeKey(operacao, setor);
     return initialPeople.filter(p => {
-      // Só interessa quem é originalmente deste setor
-      if (p.setor !== setor) return false;
-      // Ghost aparece se NÃO está mais no setor de origem (mesmo que esteja em falta)
-      const estaNoOrigem = assignments[setor]?.some(a => a.id === p.id);
+      if (p.setor !== setor || p.operacao !== operacao) return false;
+      const estaNoOrigem = assignments[key]?.some(a => a.id === p.id);
       return !estaNoOrigem;
     });
   };
@@ -529,12 +521,12 @@ const SectorAssignment = () => {
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
                     {setoresPorOperacao(operacao).map(setor => {
                       // Todos que estão no setor agora (incluindo visitantes de outras ops)
-                      const todas = pessoasNoSetor(setor);
+                      const todas = pessoasNoSetor(operacao, setor);
                       const semFalta = todas.filter(p =>
                         !assignments['falta']?.some(f => f.id === p.id)
                       );
                       const filtered = filteredPeople(semFalta);
-                      const ghosts = pessoasAusentesDaOrigem(setor);
+                      const ghosts = pessoasAusentesDaOrigem(operacao, setor);
                       // Só oculta o setor se não tiver ninguém real E não tiver ghost
                       if (searchTerm && filtered.length === 0 && ghosts.length === 0) return null;
 
@@ -542,7 +534,7 @@ const SectorAssignment = () => {
                         <div
                           key={setor}
                           onDragOver={handleDragOver}
-                          onDrop={() => handleDrop(setor)}
+                          onDrop={() => handleDrop(makeKey(operacao, setor))}
                           className="bg-blue-50 rounded-lg border-2 border-dashed border-blue-200 p-3 min-h-64"
                         >
                           <h3 className="font-bold text-slate-700 mb-2 pb-2 border-b-2 border-blue-300 text-xs line-clamp-2">
@@ -553,12 +545,12 @@ const SectorAssignment = () => {
                           </h4>
                           <div className="space-y-2">
                             {filtered.map(person => {
-                              const visitante = estaForaDaOrigem(person, setor);
+                              const visitante = estaForaDaOrigem(person, operacao, setor);
                               return (
                                 <div
                                   key={person.id}
                                   draggable
-                                  onDragStart={() => handleDragStart(person, setor)}
+                                  onDragStart={() => handleDragStart(person, makeKey(operacao, setor))}
                                   title={visitante ? `${person.name} — veio de: ${initialPeople.find(p=>p.id===person.id)?.setor}` : person.name}
                                   className={`p-2 rounded cursor-move hover:shadow-md transition text-xs ${
                                     visitante
