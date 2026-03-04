@@ -131,7 +131,7 @@ const ModalSalvar = ({ isOpen, onClose, onConfirm, assignments, justificativas, 
                 {/* Faltas */}
                 {faltas.length > 0 && (
                   <div>
-                    <p className="text-xs font-bold text-red-600 uppercase mb-2">Ausentes</p>
+
                     {faltas.map(person => (
                       <div key={person.id} className="bg-orange-50 p-4 rounded-lg border border-orange-200 mb-2">
                         <label className="block font-semibold text-slate-800 mb-2 text-sm">
