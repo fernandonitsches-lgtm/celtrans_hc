@@ -621,6 +621,20 @@ const SectorAssignment = () => {
           justificativas={justificativas}
           onJustificativaChange={handleJustificativa}
           data={today}
+          remanejados={
+            Object.keys(assignments)
+              .filter(key => key !== 'falta')
+              .flatMap(key => {
+                const [operacao, setor] = key.split('||');
+                return (assignments[key] || []).filter(p => estaForaDaOrigem(p, operacao, setor)).map(p => ({
+                  ...p,
+                  setorAtual: setor,
+                  operacaoAtual: operacao,
+                  setorOrigem: initialPeople.find(o => o.id === p.id)?.setor,
+                  operacaoOrigem: initialPeople.find(o => o.id === p.id)?.operacao,
+                }));
+              })
+          }
         />
       </div>
     </div>
