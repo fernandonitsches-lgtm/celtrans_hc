@@ -449,6 +449,7 @@ const CadastroFuncionarios = () => {
                   </select>
                 </div>
 
+                {!modoRecrutamento && (
                 <div className="md:col-span-2 bg-orange-50 p-4 rounded-lg border border-orange-200">
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input
@@ -463,6 +464,7 @@ const CadastroFuncionarios = () => {
                     </div>
                   </label>
                 </div>
+                )}
               </div>
 
               <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
