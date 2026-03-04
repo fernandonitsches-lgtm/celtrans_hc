@@ -276,10 +276,13 @@ const SectorAssignment = () => {
     .reduce((sum, k) => sum + (assignments[k]?.length || 0), 0);
 
   const setoresPorOperacao = (operacao) => {
-    return [...new Set(initialPeople
+    const setores = [...new Set(initialPeople
       .filter(p => p.operacao === operacao && p.setor !== 'Analista geral operação')
       .map(p => p.setor))]
       .sort();
+    const idx = setores.indexOf('COMPARTILHADO');
+    if (idx > -1) { setores.splice(idx, 1); setores.push('COMPARTILHADO'); }
+    return setores;
   };
 
   const pessoasNoSetor = (operacao, setor) => {
