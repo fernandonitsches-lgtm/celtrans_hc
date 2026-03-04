@@ -41,7 +41,10 @@ const SectorAssignment = () => {
 
         if (data) {
           setInitialPeople(data);
-          const opsArray = [...new Set(data.map(p => p.operacao))].filter(op => op !== 'ANALISTA GERAL').sort();
+          const sorted = [...new Set(data.map(p => p.operacao))].filter(op => op !== 'ANALISTA GERAL').sort();
+          const idx = sorted.indexOf('COMPARTILHADO');
+          if (idx > -1) { sorted.splice(idx, 1); sorted.push('COMPARTILHADO'); }
+          const opsArray = sorted;
           setOperacoes(opsArray);
           initializeAssignments(data, opsArray);
         }
