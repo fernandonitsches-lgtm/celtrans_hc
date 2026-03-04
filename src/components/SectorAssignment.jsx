@@ -621,6 +621,8 @@ const SectorAssignment = () => {
           justificativas={justificativas}
           onJustificativaChange={handleJustificativa}
           data={today}
+          totalColaboradores={initialPeople.length}
+          emFerias={initialPeople.filter(p => p.de_ferias)}
           remanejados={
             Object.keys(assignments)
               .filter(key => key !== 'falta')

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, AlertCircle, CheckCircle } from 'lucide-react';
 
-const ModalSalvar = ({ isOpen, onClose, onConfirm, assignments, justificativas, onJustificativaChange, data, remanejados = [] }) => {
+const ModalSalvar = ({ isOpen, onClose, onConfirm, assignments, justificativas, onJustificativaChange, data, remanejados = [], emFerias = [], totalColaboradores = 0 }) => {
   const [planoAcao, setPlanoAcao] = useState('');
   const [localJustificativas, setLocalJustificativas] = useState(justificativas);
   const [impedimentos, setImpedimentos] = useState({});
@@ -62,7 +62,7 @@ const ModalSalvar = ({ isOpen, onClose, onConfirm, assignments, justificativas, 
           {/* Resumo */}
           <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
             <h3 className="font-semibold text-blue-900 mb-2">📊 Resumo do Dia</h3>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-4">
               <div className="text-center">
                 <div className="text-2xl font-bold text-green-600">
                   {Object.keys(assignments)
@@ -72,13 +72,15 @@ const ModalSalvar = ({ isOpen, onClose, onConfirm, assignments, justificativas, 
                 <div className="text-sm text-blue-700">Presentes</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-red-600">{faltas.length}</div>
-                <div className="text-sm text-blue-700">Faltas</div>
+                <div className="text-2xl font-bold text-red-600">{faltas.length + emFerias.length}</div>
+                <div className="text-sm text-blue-700">Ausências</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-slate-600">
-                  {Object.keys(assignments).reduce((sum, k) => sum + (assignments[k]?.length || 0), 0)}
-                </div>
+                <div className="text-2xl font-bold text-orange-500">{emFerias.length}</div>
+                <div className="text-sm text-blue-700">Férias</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-slate-600">{totalColaboradores}</div>
                 <div className="text-sm text-blue-700">Total</div>
               </div>
             </div>
