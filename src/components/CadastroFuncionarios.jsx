@@ -23,7 +23,9 @@ const CadastroFuncionarios = () => {
     setor: '',
     operacao: '',
     de_ferias: false,
+    em_recrutamento: false,
   });
+  const [modoRecrutamento, setModoRecrutamento] = useState(false);
 
   // Listas de seleção derivadas dos dados do banco
   const opcoesOperacao = [...new Set(funcionarios.map(f => f.operacao).filter(Boolean))].sort();
@@ -107,24 +109,31 @@ const CadastroFuncionarios = () => {
   };
 
   const handleDelete = async (id, nome) => {
-    if (!confirm(`Tem certeza que deseja excluir "${nome}"?\n\nIsso também excluirá todos os registros de atribuições e faltas associados a este funcionário.`)) {
+    if (!confirm(`Tem certeza que deseja demitir "${nome}"?\n\nO registro vira uma vaga em recrutamento automaticamente.`)) {
       return;
     }
 
     try {
       setLoading(true);
+
+      // Em vez de deletar, transforma em vaga em recrutamento
       const { error } = await supabase
         .from('pessoas')
-        .delete()
+        .update({
+          name: 'VAGA EM RECRUTAMENTO',
+          de_ferias: false,
+          em_recrutamento: true,
+        })
         .eq('id', id);
 
       if (error) throw error;
-      setSuccess('Funcionário excluído com sucesso!');
+
+      setSuccess('Funcionário demitido e vaga aberta em recrutamento!');
       fetchFuncionarios();
       
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError('Erro ao excluir: ' + err.message);
+      setError('Erro ao demitir: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -146,6 +155,7 @@ const CadastroFuncionarios = () => {
 
   const handleNovo = () => {
     setFuncionarioSelecionado(null);
+    setModoRecrutamento(false);
     setFormData({
       name: '',
       cargo: '',
@@ -153,6 +163,23 @@ const CadastroFuncionarios = () => {
       setor: '',
       operacao: '',
       de_ferias: false,
+      em_recrutamento: false,
+    });
+    setEditando(false);
+    setModalAberto(true);
+  };
+
+  const handleNovaVaga = () => {
+    setFuncionarioSelecionado(null);
+    setModoRecrutamento(true);
+    setFormData({
+      name: 'VAGA EM RECRUTAMENTO',
+      cargo: '',
+      area: '',
+      setor: '',
+      operacao: '',
+      de_ferias: false,
+      em_recrutamento: true,
     });
     setEditando(false);
     setModalAberto(true);
@@ -162,6 +189,7 @@ const CadastroFuncionarios = () => {
     setModalAberto(false);
     setFuncionarioSelecionado(null);
     setEditando(false);
+    setModoRecrutamento(false);
     setFormData({
       name: '',
       cargo: '',
@@ -169,6 +197,7 @@ const CadastroFuncionarios = () => {
       setor: '',
       operacao: '',
       de_ferias: false,
+      em_recrutamento: false,
     });
   };
 
@@ -201,13 +230,22 @@ const CadastroFuncionarios = () => {
           <Users className="w-8 h-8 text-blue-600" />
           <h2 className="text-2xl font-bold text-slate-800">Gestão de Funcionários</h2>
         </div>
-        <button
-          onClick={handleNovo}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-        >
-          <Plus className="w-5 h-5" />
-          Novo Funcionário
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleNovaVaga}
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
+          >
+            <Plus className="w-5 h-5" />
+            Vaga em Recrutamento
+          </button>
+          <button
+            onClick={handleNovo}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+          >
+            <Plus className="w-5 h-5" />
+            Novo Funcionário
+          </button>
+        </div>
       </div>
 
       {/* Mensagens */}
@@ -270,7 +308,12 @@ const CadastroFuncionarios = () => {
               ) : (
                 filteredFuncionarios.map(funcionario => (
                   <tr key={funcionario.id} className="hover:bg-slate-50 transition">
-                    <td className="px-4 py-3 text-sm font-medium text-slate-800">{funcionario.name}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-slate-800">
+                      {funcionario.em_recrutamento
+                        ? <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded-full">🔍 Vaga em Recrutamento</span>
+                        : funcionario.name
+                      }
+                    </td>
                     <td className="px-4 py-3 text-sm text-slate-600">{funcionario.cargo}</td>
                     <td className="px-4 py-3 text-sm text-slate-600">{funcionario.area || '-'}</td>
                     <td className="px-4 py-3 text-sm text-slate-600">{funcionario.setor}</td>
@@ -324,7 +367,7 @@ const CadastroFuncionarios = () => {
           <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 p-6 flex items-center justify-between">
               <h2 className="text-2xl font-bold text-white">
-                {editando ? 'Editar Funcionário' : 'Novo Funcionário'}
+{modoRecrutamento ? 'Nova Vaga em Recrutamento' : editando ? 'Editar Funcionário' : 'Novo Funcionário'}
               </h2>
               <button onClick={handleCloseModal} className="text-white hover:bg-blue-800 p-1 rounded transition">
                 <X className="w-6 h-6" />
@@ -333,7 +376,7 @@ const CadastroFuncionarios = () => {
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
+                {!modoRecrutamento && <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-slate-700 mb-1">
                     Nome Completo *
                   </label>
@@ -345,7 +388,7 @@ const CadastroFuncionarios = () => {
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                   />
-                </div>
+                </div>}
 
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">

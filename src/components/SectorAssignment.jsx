@@ -57,10 +57,11 @@ const SectorAssignment = () => {
   }, []);
 
   const makeKey = (op, st) => `${op}||${st}`;
+  const vagas = initialPeople.filter(p => p.em_recrutamento);
 
   const initializeAssignments = (people = initialPeople, ops = operacoes) => {
     const init = { 'falta': [] };
-    const pessoasAtivas = people.filter(p => !p.de_ferias && p.operacao !== 'ANALISTA GERAL');
+    const pessoasAtivas = people.filter(p => !p.de_ferias && p.operacao !== 'ANALISTA GERAL' && !p.em_recrutamento);
     pessoasAtivas.forEach(person => {
       const key = makeKey(person.operacao, person.setor);
       if (!init[key]) init[key] = [];
@@ -578,6 +579,20 @@ const SectorAssignment = () => {
                                 <div className="text-slate-500 text-xs mt-0.5 line-clamp-1 italic">deslocado</div>
                               </div>
                             ))}
+                            {/* Vagas em Recrutamento */}
+                            {vagas
+                              .filter(v => v.setor === setor && v.operacao === operacao)
+                              .map(vaga => (
+                                <div
+                                  key={`vaga-${vaga.id}`}
+                                  className="bg-purple-50 p-2 rounded border-2 border-dashed border-purple-400 text-xs"
+                                >
+                                  <div className="font-semibold text-purple-700 line-clamp-2">🔍 Em Recrutamento</div>
+                                  <div className="text-purple-600 text-xs mt-0.5 line-clamp-1">{vaga.cargo}</div>
+                                  <div className="text-purple-500 text-xs mt-0.5">Desde {vaga.data_abertura}</div>
+                                </div>
+                              ))
+                            }
                           </div>
                         </div>
                       );
