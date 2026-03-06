@@ -595,7 +595,7 @@ const SectorAssignment = () => {
                                 >
                                   <div className="font-semibold text-purple-700 line-clamp-2">🔍 Em Recrutamento</div>
                                   <div className="text-purple-600 text-xs mt-0.5 line-clamp-1">{vaga.cargo}</div>
-                                  <div className="text-purple-500 text-xs mt-0.5">Desde {vaga.data_abertura}</div>
+                                  {vaga.nome_anterior && <div className="text-purple-500 text-xs mt-0.5">Ant: {vaga.nome_anterior}</div>}
                                 </div>
                               ))
                             }

@@ -120,6 +120,7 @@ const CadastroFuncionarios = () => {
       const { error } = await supabase
         .from('pessoas')
         .update({
+          nome_anterior: nome,
           name: 'VAGA EM RECRUTAMENTO',
           de_ferias: false,
           em_recrutamento: true,
