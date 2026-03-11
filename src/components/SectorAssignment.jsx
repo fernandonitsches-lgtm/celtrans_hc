@@ -83,12 +83,14 @@ const SectorAssignment = () => {
 
         if (data) {
           setInitialPeople(data);
-          const sorted = [...new Set(data.map(p => p.operacao))].filter(op => op !== 'ANALISTA GERAL').sort();
+          // Exclui ANALISTA GERAL e SUPORTE da lista de operações normais
+          const sorted = [...new Set(data.map(p => p.operacao))]
+            .filter(op => op !== 'ANALISTA GERAL' && op !== 'SUPORTE')
+            .sort();
           const idx = sorted.indexOf('COMPARTILHADO');
           if (idx > -1) { sorted.splice(idx, 1); sorted.push('COMPARTILHADO'); }
-          const opsArray = sorted;
-          setOperacoes(opsArray);
-          initializeAssignments(data, opsArray);
+          setOperacoes(sorted);
+          initializeAssignments(data, sorted);
         }
       } catch (err) {
         console.error('Erro ao buscar dados:', err);
@@ -104,8 +106,14 @@ const SectorAssignment = () => {
   const makeKey = (op, st) => `${op}||${st}`;
   const vagas = initialPeople.filter(p => p.em_recrutamento);
 
+  // Constante para operação de suporte (não conta no absenteísmo)
+  const OP_SUPORTE = 'SUPORTE';
+
+  const isSuporte = (p) => p.operacao === OP_SUPORTE;
+
   const initializeAssignments = (people = initialPeople, ops = operacoes) => {
     const init = { 'falta': [] };
+    // SUPORTE entra no mapa de assignments mas NÃO pode ir para a zona de falta
     const pessoasAtivas = people.filter(p => !p.de_ferias && p.operacao !== 'ANALISTA GERAL' && !p.em_recrutamento);
     pessoasAtivas.forEach(person => {
       const key = makeKey(person.operacao, person.setor);
@@ -312,8 +320,9 @@ const SectorAssignment = () => {
   };
 
   const getMetricasOperacao = (operacao) => {
-    const pessoasOp = initialPeople.filter(p => p.operacao === operacao);
-    const faltasOp = assignments['falta']?.filter(p => p.operacao === operacao) || [];
+    // SUPORTE não entra em métricas de absenteísmo
+    const pessoasOp = initialPeople.filter(p => p.operacao === operacao && !isSuporte(p));
+    const faltasOp = assignments['falta']?.filter(p => p.operacao === operacao && !isSuporte(p)) || [];
     const absenteismo = pessoasOp.length > 0 ? ((faltasOp.length / pessoasOp.length) * 100).toFixed(1) : 0;
     return {
       total: pessoasOp.length,
@@ -323,9 +332,14 @@ const SectorAssignment = () => {
     };
   };
 
+  // totalAtribuido exclui pessoas de SUPORTE
   const totalAtribuido = Object.keys(assignments)
     .filter(k => k !== 'falta')
-    .reduce((sum, k) => sum + (assignments[k]?.length || 0), 0);
+    .reduce((sum, k) => sum + (assignments[k]?.filter(p => !isSuporte(p)).length || 0), 0);
+
+  // pessoas de suporte separadas
+  const pessoasSuporte = initialPeople.filter(p => p.operacao === OP_SUPORTE && !p.de_ferias && !p.em_recrutamento);
+  const setoresSuporte = [...new Set(pessoasSuporte.map(p => p.setor))].sort();
 
   const setoresPorOperacao = (operacao) => {
     const setores = [...new Set(initialPeople
@@ -387,7 +401,7 @@ const SectorAssignment = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-            {operacoes.map(operacao => {
+            {operacoes.filter(op => op !== OP_SUPORTE).map(operacao => {
               const metricas = getMetricasOperacao(operacao);
               return (
                 <div key={operacao} className="bg-white rounded-lg shadow-md p-6 border-l-4 border-purple-500">
@@ -427,20 +441,24 @@ const SectorAssignment = () => {
             <h2 className="font-bold text-slate-800 mb-4">Resumo Geral</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center">
-                <div className="text-3xl font-bold text-blue-600">{initialPeople.length}</div>
-                <div className="text-sm text-slate-600 mt-1">Total de Pessoas</div>
+                <div className="text-3xl font-bold text-blue-600">{initialPeople.filter(p => !isSuporte(p)).length}</div>
+                <div className="text-sm text-slate-600 mt-1">Total (sem Suporte)</div>
               </div>
               <div className="text-center">
                 <div className="text-3xl font-bold text-green-600">{totalAtribuido}</div>
                 <div className="text-sm text-slate-600 mt-1">Presentes</div>
               </div>
               <div className="text-center">
-                <div className="text-3xl font-bold text-red-600">{assignments['falta']?.length || 0}</div>
+                <div className="text-3xl font-bold text-red-600">{assignments['falta']?.filter(p => !isSuporte(p)).length || 0}</div>
                 <div className="text-sm text-slate-600 mt-1">Faltas</div>
               </div>
               <div className="text-center">
                 <div className="text-3xl font-bold text-purple-600">
-                  {((assignments['falta']?.length || 0) / initialPeople.length * 100).toFixed(1)}%
+                  {(() => {
+                    const totalSemSuporte = initialPeople.filter(p => !isSuporte(p)).length;
+                    const faltasSemSuporte = assignments['falta']?.filter(p => !isSuporte(p)).length || 0;
+                    return totalSemSuporte > 0 ? ((faltasSemSuporte / totalSemSuporte) * 100).toFixed(1) : '0.0';
+                  })()}%
                 </div>
                 <div className="text-sm text-slate-600 mt-1">Absenteismo Geral</div>
               </div>
@@ -481,7 +499,7 @@ const SectorAssignment = () => {
               </div>
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-red-600" />
-                <span><span className="font-semibold text-red-600">{assignments['falta']?.length || 0}</span> falta(s)</span>
+                <span><span className="font-semibold text-red-600">{assignments['falta']?.filter(p => !isSuporte(p)).length || 0}</span> falta(s)</span>
               </div>
             </div>
             <div className="flex gap-2 flex-wrap">
@@ -668,6 +686,52 @@ const SectorAssignment = () => {
                 )}
               </div>
             ))}
+
+            {/* ── Bloco SUPORTE — não conta no absenteísmo ── */}
+            {pessoasSuporte.length > 0 && filterOperacao === 'todas' && (
+              <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                <button
+                  onClick={() => setExpandedOps(prev => ({ ...prev, [OP_SUPORTE]: !prev[OP_SUPORTE] }))}
+                  className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition border-l-4 border-teal-500"
+                >
+                  <div className="flex items-center gap-3">
+                    <ChevronDown
+                      className={`w-5 h-5 transition-transform ${expandedOps[OP_SUPORTE] ? '' : '-rotate-90'}`}
+                    />
+                    <span className="font-bold text-teal-700">SUPORTE</span>
+                    <span className="text-xs bg-teal-100 text-teal-700 px-2 py-1 rounded-full">
+                      {pessoasSuporte.length} pessoas
+                    </span>
+                    <span className="text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded-full italic">
+                      não conta no absenteísmo
+                    </span>
+                  </div>
+                </button>
+                {expandedOps[OP_SUPORTE] && (
+                  <div className="border-t border-slate-200 p-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                      {setoresSuporte.map(setor => {
+                        const pessoas = pessoasSuporte.filter(p => p.setor === setor);
+                        return (
+                          <div key={setor} className="bg-teal-50 rounded-lg border-2 border-dashed border-teal-200 p-3 min-h-24">
+                            <h3 className="font-bold text-slate-700 mb-2 pb-2 border-b-2 border-teal-300 text-xs line-clamp-2">{setor}</h3>
+                            <h4 className="text-xs font-semibold text-teal-600 mb-2">({pessoas.length})</h4>
+                            <div className="space-y-2">
+                              {pessoas.map(person => (
+                                <div key={person.id} className="bg-white border-l-4 border-teal-500 p-2 rounded text-xs select-none" title={`${person.name} — Suporte`}>
+                                  <div className="font-semibold text-slate-800 line-clamp-2">{person.name}</div>
+                                  <div className="text-slate-600 text-xs mt-0.5 line-clamp-1">{person.cargo}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Painel lateral direito: Faltas / Férias / Em Recrutamento */}
