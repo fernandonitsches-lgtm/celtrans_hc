@@ -687,8 +687,8 @@ const SectorAssignment = () => {
               </div>
             ))}
 
-            {/* ── Bloco SUPORTE — não conta no absenteísmo ── */}
-            {pessoasSuporte.length > 0 && filterOperacao === 'todas' && (
+            {/* ── Bloco SUPORTE — sempre visível, não conta no absenteísmo ── */}
+            {filterOperacao === 'todas' && (
               <div className="bg-white rounded-lg shadow-md overflow-hidden">
                 <button
                   onClick={() => setExpandedOps(prev => ({ ...prev, [OP_SUPORTE]: !prev[OP_SUPORTE] }))}
@@ -709,25 +709,31 @@ const SectorAssignment = () => {
                 </button>
                 {expandedOps[OP_SUPORTE] && (
                   <div className="border-t border-slate-200 p-4">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
-                      {setoresSuporte.map(setor => {
-                        const pessoas = pessoasSuporte.filter(p => p.setor === setor);
-                        return (
-                          <div key={setor} className="bg-teal-50 rounded-lg border-2 border-dashed border-teal-200 p-3 min-h-24">
-                            <h3 className="font-bold text-slate-700 mb-2 pb-2 border-b-2 border-teal-300 text-xs line-clamp-2">{setor}</h3>
-                            <h4 className="text-xs font-semibold text-teal-600 mb-2">({pessoas.length})</h4>
-                            <div className="space-y-2">
-                              {pessoas.map(person => (
-                                <div key={person.id} className="bg-white border-l-4 border-teal-500 p-2 rounded text-xs select-none" title={`${person.name} — Suporte`}>
-                                  <div className="font-semibold text-slate-800 line-clamp-2">{person.name}</div>
-                                  <div className="text-slate-600 text-xs mt-0.5 line-clamp-1">{person.cargo}</div>
-                                </div>
-                              ))}
+                    {pessoasSuporte.length === 0 ? (
+                      <p className="text-sm text-slate-400 italic text-center py-4">
+                        Nenhuma pessoa cadastrada com operação "SUPORTE" ainda.
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                        {setoresSuporte.map(setor => {
+                          const pessoas = pessoasSuporte.filter(p => p.setor === setor);
+                          return (
+                            <div key={setor} className="bg-teal-50 rounded-lg border-2 border-dashed border-teal-200 p-3 min-h-24">
+                              <h3 className="font-bold text-slate-700 mb-2 pb-2 border-b-2 border-teal-300 text-xs line-clamp-2">{setor}</h3>
+                              <h4 className="text-xs font-semibold text-teal-600 mb-2">({pessoas.length})</h4>
+                              <div className="space-y-2">
+                                {pessoas.map(person => (
+                                  <div key={person.id} className="bg-white border-l-4 border-teal-500 p-2 rounded text-xs select-none" title={`${person.name} — Suporte`}>
+                                    <div className="font-semibold text-slate-800 line-clamp-2">{person.name}</div>
+                                    <div className="text-slate-600 text-xs mt-0.5 line-clamp-1">{person.cargo}</div>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
