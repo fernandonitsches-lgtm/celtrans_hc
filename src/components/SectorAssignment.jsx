@@ -403,6 +403,8 @@ const SectorAssignment = () => {
   }
 
   // Main Assignment View
+  const pessoasEmFerias = initialPeople.filter(p => p.de_ferias);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4">
       <div className="max-w-full mx-auto">
@@ -495,141 +497,212 @@ const SectorAssignment = () => {
         </div>
 
 
-        <div className="space-y-4 mb-6">
-          {operacoes
-            .filter(op => op !== 'ANALISTA GERAL')
-            .filter(op => filterOperacao === 'todas' || op === filterOperacao)
-            .map(operacao => (
-            <div key={operacao} className="bg-white rounded-lg shadow-md overflow-hidden">
-              <button
-                onClick={() => setExpandedOps(prev => ({ ...prev, [operacao]: !prev[operacao] }))}
-                className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition border-l-4 border-blue-500"
-              >
-                <div className="flex items-center gap-3">
-                  <ChevronDown
-                    className={`w-5 h-5 transition-transform ${expandedOps[operacao] ? '' : '-rotate-90'}`}
-                  />
-                  <span className="font-bold text-slate-700">{operacao}</span>
-                  {/* Conta apenas pessoas cuja operação original é essa (exclui visitantes e faltas) */}
-                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                    {setoresPorOperacao(operacao).reduce((sum, setor) => {
-                      const daqui = pessoasOriginaisDaOperacaoNoSetor(setor, operacao);
-                      const semFalta = daqui.filter(p =>
-                        !assignments['falta']?.some(f => f.id === p.id)
-                      );
-                      return sum + filteredPeople(semFalta).length;
-                    }, 0)} pessoas
-                  </span>
-                </div>
-              </button>
+        {/* Layout principal: operações (esq) + painel lateral (dir) */}
+        <div className="flex gap-4 items-start">
 
-              {expandedOps[operacao] && (
-                <div className="border-t border-slate-200 p-4">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
-                    {setoresPorOperacao(operacao).map(setor => {
-                      // Todos que estão no setor agora (incluindo visitantes de outras ops)
-                      const todas = pessoasNoSetor(operacao, setor);
-                      const semFalta = todas.filter(p =>
-                        !assignments['falta']?.some(f => f.id === p.id)
-                      );
-                      const filtered = filteredPeople(semFalta);
-                      const ghosts = pessoasAusentesDaOrigem(operacao, setor);
-                      // Só oculta o setor se não tiver ninguém real E não tiver ghost
-                      if (searchTerm && filtered.length === 0 && ghosts.length === 0) return null;
-
-                      return (
-                        <div
-                          key={setor}
-                          onDragOver={handleDragOver}
-                          onDrop={() => handleDrop(makeKey(operacao, setor))}
-                          className="bg-blue-50 rounded-lg border-2 border-dashed border-blue-200 p-3 min-h-64"
-                        >
-                          <h3 className="font-bold text-slate-700 mb-2 pb-2 border-b-2 border-blue-300 text-xs line-clamp-2">
-                            {setor}
-                          </h3>
-                          <h4 className="text-xs font-semibold text-blue-600 mb-2">
-                            ({filtered.length})
-                          </h4>
-                          <div className="space-y-2">
-                            {filtered.map(person => {
-                              const visitante = estaForaDaOrigem(person, operacao, setor);
-                              return (
-                                <div
-                                  key={person.id}
-                                  draggable
-                                  onDragStart={() => handleDragStart(person, makeKey(operacao, setor))}
-                                  title={visitante ? `${person.name} — veio de: ${initialPeople.find(p=>p.id===person.id)?.setor}` : person.name}
-                                  className={`p-2 rounded cursor-move hover:shadow-md transition text-xs ${
-                                    visitante
-                                      ? 'bg-amber-50 border-l-4 border-amber-400 border border-amber-200'
-                                      : 'bg-white border-l-4 border-blue-500'
-                                  }`}
-                                >
-                                  <div className="font-semibold text-slate-800 line-clamp-2">{person.name}</div>
-                                  <div className="text-slate-600 text-xs mt-0.5 line-clamp-1">{person.cargo}</div>
-                                  {visitante && (
-                                    <div className="text-amber-600 text-xs mt-0.5 font-medium">↪ remanejado</div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                            {/* Ghost cards: pessoas que saíram do setor de origem */}
-                            {ghosts.map(person => (
-                              <div
-                                key={`ghost-${person.id}`}
-                                title={`${person.name} está em outro setor`}
-                                className="bg-white p-2 rounded border-l-4 border-blue-300 text-xs opacity-50 select-none"
-                                style={{ borderStyle: 'dashed' }}
-                              >
-                                <div className="font-semibold text-slate-600 line-clamp-2">{person.name}</div>
-                                <div className="text-slate-500 text-xs mt-0.5 line-clamp-1 italic">deslocado</div>
-                              </div>
-                            ))}
-                            {/* Vagas em Recrutamento */}
-                            {vagas
-                              .filter(v => v.setor === setor && v.operacao === operacao)
-                              .map(vaga => (
-                                <div
-                                  key={`vaga-${vaga.id}`}
-                                  className="bg-purple-50 p-2 rounded border-2 border-dashed border-purple-400 text-xs"
-                                >
-                                  <div className="font-semibold text-purple-700 line-clamp-2">🔍 Em Recrutamento</div>
-                                  <div className="text-purple-600 text-xs mt-0.5 line-clamp-1">{vaga.cargo}</div>
-                                  {vaga.nome_anterior && <div className="text-purple-500 text-xs mt-0.5">Ant: {vaga.nome_anterior}</div>}
-                                </div>
-                              ))
-                            }
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        <div className="bg-red-50 rounded-lg shadow-md border-4 border-dashed border-red-300 p-4 sticky bottom-0">
-          <h2 className="font-bold text-red-700 mb-3 text-lg">✖ FALTA ({filteredPeople(assignments['falta'])?.length || 0})</h2>
-          <div
-            onDragOver={handleDragOver}
-            onDrop={() => handleDrop('falta')}
-            className="min-h-24"
-          >
-            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
-              {filteredPeople(assignments['falta'])?.map(person => (
-                <div
-                  key={person.id}
-                  draggable
-                  onDragStart={() => handleDragStart(person, 'falta')}
-                  className="bg-red-100 p-2 rounded border-l-3 border-red-500 cursor-move hover:shadow-md transition text-xs"
+          {/* Coluna esquerda: operações */}
+          <div className="flex-1 min-w-0 space-y-4">
+            {operacoes
+              .filter(op => op !== 'ANALISTA GERAL')
+              .filter(op => filterOperacao === 'todas' || op === filterOperacao)
+              .map(operacao => (
+              <div key={operacao} className="bg-white rounded-lg shadow-md overflow-hidden">
+                <button
+                  onClick={() => setExpandedOps(prev => ({ ...prev, [operacao]: !prev[operacao] }))}
+                  className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition border-l-4 border-blue-500"
                 >
-                  <div className="font-semibold text-red-900 line-clamp-2">{person.name}</div>
-                  <div className="text-red-700 text-xs mt-0.5">{person.cargo}</div>
-                </div>
-              ))}
+                  <div className="flex items-center gap-3">
+                    <ChevronDown
+                      className={`w-5 h-5 transition-transform ${expandedOps[operacao] ? '' : '-rotate-90'}`}
+                    />
+                    <span className="font-bold text-slate-700">{operacao}</span>
+                    {/* Conta apenas pessoas cuja operação original é essa (exclui visitantes e faltas) */}
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                      {setoresPorOperacao(operacao).reduce((sum, setor) => {
+                        const daqui = pessoasOriginaisDaOperacaoNoSetor(setor, operacao);
+                        const semFalta = daqui.filter(p =>
+                          !assignments['falta']?.some(f => f.id === p.id)
+                        );
+                        return sum + filteredPeople(semFalta).length;
+                      }, 0)} pessoas
+                    </span>
+                  </div>
+                </button>
+
+                {expandedOps[operacao] && (
+                  <div className="border-t border-slate-200 p-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                      {setoresPorOperacao(operacao).map(setor => {
+                        // Todos que estão no setor agora (incluindo visitantes de outras ops)
+                        const todas = pessoasNoSetor(operacao, setor);
+                        const semFalta = todas.filter(p =>
+                          !assignments['falta']?.some(f => f.id === p.id)
+                        );
+                        const filtered = filteredPeople(semFalta);
+                        const ghosts = pessoasAusentesDaOrigem(operacao, setor);
+                        // Só oculta o setor se não tiver ninguém real E não tiver ghost
+                        if (searchTerm && filtered.length === 0 && ghosts.length === 0) return null;
+
+                        return (
+                          <div
+                            key={setor}
+                            onDragOver={handleDragOver}
+                            onDrop={() => handleDrop(makeKey(operacao, setor))}
+                            className="bg-blue-50 rounded-lg border-2 border-dashed border-blue-200 p-3 min-h-64"
+                          >
+                            <h3 className="font-bold text-slate-700 mb-2 pb-2 border-b-2 border-blue-300 text-xs line-clamp-2">
+                              {setor}
+                            </h3>
+                            <h4 className="text-xs font-semibold text-blue-600 mb-2">
+                              ({filtered.length})
+                            </h4>
+                            <div className="space-y-2">
+                              {filtered.map(person => {
+                                const visitante = estaForaDaOrigem(person, operacao, setor);
+                                return (
+                                  <div
+                                    key={person.id}
+                                    draggable
+                                    onDragStart={() => handleDragStart(person, makeKey(operacao, setor))}
+                                    title={visitante ? `${person.name} — veio de: ${initialPeople.find(p=>p.id===person.id)?.setor}` : person.name}
+                                    className={`p-2 rounded cursor-move hover:shadow-md transition text-xs ${
+                                      visitante
+                                        ? 'bg-amber-50 border-l-4 border-amber-400 border border-amber-200'
+                                        : 'bg-white border-l-4 border-blue-500'
+                                    }`}
+                                  >
+                                    <div className="font-semibold text-slate-800 line-clamp-2">{person.name}</div>
+                                    <div className="text-slate-600 text-xs mt-0.5 line-clamp-1">{person.cargo}</div>
+                                    {visitante && (
+                                      <div className="text-amber-600 text-xs mt-0.5 font-medium">↪ remanejado</div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                              {/* Ghost cards: pessoas que saíram do setor de origem */}
+                              {ghosts.map(person => (
+                                <div
+                                  key={`ghost-${person.id}`}
+                                  title={`${person.name} está em outro setor`}
+                                  className="bg-white p-2 rounded border-l-4 border-blue-300 text-xs opacity-50 select-none"
+                                  style={{ borderStyle: 'dashed' }}
+                                >
+                                  <div className="font-semibold text-slate-600 line-clamp-2">{person.name}</div>
+                                  <div className="text-slate-500 text-xs mt-0.5 line-clamp-1 italic">deslocado</div>
+                                </div>
+                              ))}
+                              {/* Vagas em Recrutamento */}
+                              {vagas
+                                .filter(v => v.setor === setor && v.operacao === operacao)
+                                .map(vaga => (
+                                  <div
+                                    key={`vaga-${vaga.id}`}
+                                    className="bg-purple-50 p-2 rounded border-2 border-dashed border-purple-400 text-xs"
+                                  >
+                                    <div className="font-semibold text-purple-700 line-clamp-2">🔍 Em Recrutamento</div>
+                                    <div className="text-purple-600 text-xs mt-0.5 line-clamp-1">{vaga.cargo}</div>
+                                    {vaga.nome_anterior && <div className="text-purple-500 text-xs mt-0.5">Ant: {vaga.nome_anterior}</div>}
+                                  </div>
+                                ))
+                              }
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Painel lateral direito: Faltas / Férias / Em Recrutamento */}
+          <div className="w-56 flex-shrink-0 flex flex-col gap-4 sticky top-20">
+
+            {/* FALTAS */}
+            <div className="bg-red-50 rounded-lg shadow-md border-2 border-dashed border-red-300 overflow-hidden">
+              <div className="bg-red-500 px-3 py-2 flex items-center justify-between">
+                <span className="font-bold text-white text-sm">✖ FALTAS</span>
+                <span className="bg-red-700 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                  {filteredPeople(assignments['falta'])?.length || 0}
+                </span>
+              </div>
+              <div
+                onDragOver={handleDragOver}
+                onDrop={() => handleDrop('falta')}
+                className="p-2 min-h-24 space-y-1"
+              >
+                {(filteredPeople(assignments['falta'])?.length === 0) && (
+                  <p className="text-xs text-red-300 italic text-center mt-4">Arraste aqui</p>
+                )}
+                {filteredPeople(assignments['falta'])?.map(person => (
+                  <div
+                    key={person.id}
+                    draggable
+                    onDragStart={() => handleDragStart(person, 'falta')}
+                    className="bg-white border-l-4 border-red-500 p-2 rounded cursor-move hover:shadow-md transition text-xs"
+                  >
+                    <div className="font-semibold text-red-900 line-clamp-2">{person.name}</div>
+                    <div className="text-red-600 text-xs mt-0.5 line-clamp-1">{person.cargo}</div>
+                    <div className="text-red-400 text-xs mt-0.5 line-clamp-1 italic">{person.operacao}</div>
+                  </div>
+                ))}
+              </div>
             </div>
+
+            {/* FÉRIAS */}
+            <div className="bg-orange-50 rounded-lg shadow-md border-2 border-orange-200 overflow-hidden">
+              <div className="bg-orange-400 px-3 py-2 flex items-center justify-between">
+                <span className="font-bold text-white text-sm">🏖️ FÉRIAS</span>
+                <span className="bg-orange-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                  {pessoasEmFerias.length}
+                </span>
+              </div>
+              <div className="p-2 min-h-16 space-y-1">
+                {pessoasEmFerias.length === 0 && (
+                  <p className="text-xs text-orange-300 italic text-center mt-4">Nenhum em férias</p>
+                )}
+                {pessoasEmFerias.map(person => (
+                  <div
+                    key={person.id}
+                    className="bg-white border-l-4 border-orange-400 p-2 rounded text-xs select-none"
+                  >
+                    <div className="font-semibold text-orange-900 line-clamp-2">{person.name}</div>
+                    <div className="text-orange-600 text-xs mt-0.5 line-clamp-1">{person.cargo}</div>
+                    <div className="text-orange-400 text-xs mt-0.5 line-clamp-1 italic">{person.operacao}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* EM RECRUTAMENTO */}
+            <div className="bg-purple-50 rounded-lg shadow-md border-2 border-purple-200 overflow-hidden">
+              <div className="bg-purple-500 px-3 py-2 flex items-center justify-between">
+                <span className="font-bold text-white text-sm">🔍 RECRUTAMENTO</span>
+                <span className="bg-purple-700 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                  {vagas.length}
+                </span>
+              </div>
+              <div className="p-2 min-h-16 space-y-1">
+                {vagas.length === 0 && (
+                  <p className="text-xs text-purple-300 italic text-center mt-4">Nenhuma vaga aberta</p>
+                )}
+                {vagas.map(vaga => (
+                  <div
+                    key={vaga.id}
+                    className="bg-white border-l-4 border-purple-400 p-2 rounded text-xs select-none"
+                  >
+                    <div className="font-semibold text-purple-900 line-clamp-2">{vaga.cargo}</div>
+                    <div className="text-purple-600 text-xs mt-0.5 line-clamp-1">{vaga.setor}</div>
+                    <div className="text-purple-400 text-xs mt-0.5 line-clamp-1 italic">{vaga.operacao}</div>
+                    {vaga.nome_anterior && (
+                      <div className="text-purple-400 text-xs mt-0.5">Ant: {vaga.nome_anterior}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
           </div>
         </div>
 
