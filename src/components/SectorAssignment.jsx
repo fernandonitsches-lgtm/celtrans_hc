@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Calendar, Download, RotateCcw, Users, ChevronDown, BarChart3, Search, Filter, AlertCircle } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import ModalSalvar from './ModalSalvar';
@@ -24,6 +24,48 @@ const SectorAssignment = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [operacoes, setOperacoes] = useState([]);
+  const [dragOver, setDragOver] = useState(null); // chave do setor com hover
+
+  // ── Auto-scroll durante drag ──
+  const scrollIntervalRef = useRef(null);
+  const SCROLL_ZONE = 100;  // px da borda que ativa o scroll
+  const SCROLL_SPEED = 12;  // px por tick
+
+  const stopAutoScroll = useCallback(() => {
+    if (scrollIntervalRef.current) {
+      clearInterval(scrollIntervalRef.current);
+      scrollIntervalRef.current = null;
+    }
+  }, []);
+
+  const handleDragOverWindow = useCallback((e) => {
+    const y = e.clientY;
+    const h = window.innerHeight;
+    stopAutoScroll();
+    if (y < SCROLL_ZONE) {
+      // Perto do topo → rola pra cima
+      scrollIntervalRef.current = setInterval(() => {
+        window.scrollBy({ top: -SCROLL_SPEED, behavior: 'instant' });
+      }, 16);
+    } else if (y > h - SCROLL_ZONE) {
+      // Perto do fundo → rola pra baixo
+      scrollIntervalRef.current = setInterval(() => {
+        window.scrollBy({ top: SCROLL_SPEED, behavior: 'instant' });
+      }, 16);
+    }
+  }, [stopAutoScroll]);
+
+  useEffect(() => {
+    window.addEventListener('dragover', handleDragOverWindow);
+    window.addEventListener('dragend', stopAutoScroll);
+    window.addEventListener('drop', stopAutoScroll);
+    return () => {
+      window.removeEventListener('dragover', handleDragOverWindow);
+      window.removeEventListener('dragend', stopAutoScroll);
+      window.removeEventListener('drop', stopAutoScroll);
+      stopAutoScroll();
+    };
+  }, [handleDragOverWindow, stopAutoScroll]);
 
   // Buscar dados do Supabase
   useEffect(() => {
@@ -118,8 +160,13 @@ const SectorAssignment = () => {
     setDraggedPerson({ person, source });
   };
 
-  const handleDragOver = (e) => {
+  const handleDragOver = (e, key) => {
     e.preventDefault();
+    setDragOver(key);
+  };
+
+  const handleDragLeave = () => {
+    setDragOver(null);
   };
 
   const handleDrop = (target) => {
@@ -135,6 +182,8 @@ const SectorAssignment = () => {
       return newAssignments;
     });
     setDraggedPerson(null);
+    setDragOver(null);
+    stopAutoScroll();
   };
 
   const handleReset = () => {
@@ -546,9 +595,14 @@ const SectorAssignment = () => {
                         return (
                           <div
                             key={setor}
-                            onDragOver={handleDragOver}
+                            onDragOver={(e) => handleDragOver(e, makeKey(operacao, setor))}
+                            onDragLeave={handleDragLeave}
                             onDrop={() => handleDrop(makeKey(operacao, setor))}
-                            className="bg-blue-50 rounded-lg border-2 border-dashed border-blue-200 p-3 min-h-64"
+                            className={`rounded-lg border-2 border-dashed p-3 min-h-64 transition-colors ${
+                              dragOver === makeKey(operacao, setor)
+                                ? 'bg-blue-100 border-blue-500 shadow-inner'
+                                : 'bg-blue-50 border-blue-200'
+                            }`}
                           >
                             <h3 className="font-bold text-slate-700 mb-2 pb-2 border-b-2 border-blue-300 text-xs line-clamp-2">
                               {setor}
@@ -565,7 +619,7 @@ const SectorAssignment = () => {
                                     draggable
                                     onDragStart={() => handleDragStart(person, makeKey(operacao, setor))}
                                     title={visitante ? `${person.name} — veio de: ${initialPeople.find(p=>p.id===person.id)?.setor}` : person.name}
-                                    className={`p-2 rounded cursor-move hover:shadow-md transition text-xs ${
+                                    className={`p-2 rounded cursor-grab active:cursor-grabbing hover:shadow-md active:opacity-50 active:scale-95 transition-all text-xs ${
                                       visitante
                                         ? 'bg-amber-50 border-l-4 border-amber-400 border border-amber-200'
                                         : 'bg-white border-l-4 border-blue-500'
@@ -628,9 +682,12 @@ const SectorAssignment = () => {
                 </span>
               </div>
               <div
-                onDragOver={handleDragOver}
+                onDragOver={(e) => handleDragOver(e, 'falta')}
+                onDragLeave={handleDragLeave}
                 onDrop={() => handleDrop('falta')}
-                className="p-2 min-h-24 space-y-1"
+                className={`p-2 min-h-24 space-y-1 transition-colors rounded-b-lg ${
+                  dragOver === 'falta' ? 'bg-red-100' : ''
+                }`}
               >
                 {(filteredPeople(assignments['falta'])?.length === 0) && (
                   <p className="text-xs text-red-300 italic text-center mt-4">Arraste aqui</p>
@@ -640,7 +697,7 @@ const SectorAssignment = () => {
                     key={person.id}
                     draggable
                     onDragStart={() => handleDragStart(person, 'falta')}
-                    className="bg-white border-l-4 border-red-500 p-2 rounded cursor-move hover:shadow-md transition text-xs"
+                    className="bg-white border-l-4 border-red-500 p-2 rounded cursor-grab active:cursor-grabbing active:opacity-50 active:scale-95 hover:shadow-md transition-all text-xs"
                   >
                     <div className="font-semibold text-red-900 line-clamp-2">{person.name}</div>
                     <div className="text-red-600 text-xs mt-0.5 line-clamp-1">{person.cargo}</div>
