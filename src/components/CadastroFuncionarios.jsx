@@ -26,6 +26,7 @@ const CadastroFuncionarios = () => {
     em_recrutamento: false,
   });
   const [modoRecrutamento, setModoRecrutamento] = useState(false);
+  const [setorCustom, setSetorCustom] = useState(false); // modo digitar setor novo
 
   // Listas de seleção derivadas dos dados do banco
   const opcoesOperacao = [...new Set(funcionarios.map(f => f.operacao).filter(Boolean))].sort();
@@ -424,15 +425,47 @@ const CadastroFuncionarios = () => {
                   <label className="block text-sm font-semibold text-slate-700 mb-1">
                     Setor *
                   </label>
-                  <select
-                    value={formData.setor}
-                    onChange={(e) => setFormData({ ...formData, setor: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                    required
-                  >
-                    <option value="">Selecione o setor...</option>
-                    {opcoesSetor.map(op => <option key={op} value={op}>{op}</option>)}
-                  </select>
+                  {!setorCustom ? (
+                    <div className="flex gap-2">
+                      <select
+                        value={formData.setor}
+                        onChange={(e) => setFormData({ ...formData, setor: e.target.value })}
+                        className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        required
+                      >
+                        <option value="">Selecione o setor...</option>
+                        {opcoesSetor.map(op => <option key={op} value={op}>{op}</option>)}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => { setSetorCustom(true); setFormData(f => ({ ...f, setor: '' })); }}
+                        className="px-3 py-2 bg-blue-50 border border-blue-300 text-blue-600 rounded-lg hover:bg-blue-100 transition text-sm font-medium whitespace-nowrap"
+                        title="Digitar novo setor"
+                      >
+                        + Novo
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={formData.setor}
+                        onChange={(e) => setFormData({ ...formData, setor: e.target.value })}
+                        placeholder="Digite o nome do novo setor..."
+                        className="flex-1 px-4 py-2 border border-blue-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={() => { setSetorCustom(false); setFormData(f => ({ ...f, setor: '' })); }}
+                        className="px-3 py-2 bg-slate-100 border border-slate-300 text-slate-600 rounded-lg hover:bg-slate-200 transition text-sm font-medium"
+                        title="Voltar para a lista"
+                      >
+                        ← Lista
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -441,7 +474,7 @@ const CadastroFuncionarios = () => {
                   </label>
                   <select
                     value={formData.operacao}
-                    onChange={(e) => setFormData({ ...formData, operacao: e.target.value, setor: '', area: '' })}
+                    onChange={(e) => { setFormData({ ...formData, operacao: e.target.value, setor: '', area: '' }); setSetorCustom(false); }}
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                     required
                   >
