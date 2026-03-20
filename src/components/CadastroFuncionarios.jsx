@@ -94,7 +94,24 @@ const CadastroFuncionarios = () => {
           .insert([formData]);
 
         if (error) throw error;
-        setSuccess('Funcionário cadastrado com sucesso!');
+
+        // Verificar se existe uma vaga em recrutamento no mesmo setor/operação e deletar
+        const { data: vagas } = await supabase
+          .from('pessoas')
+          .select('id')
+          .eq('em_recrutamento', true)
+          .eq('setor', formData.setor)
+          .eq('operacao', formData.operacao)
+          .limit(1);
+
+        if (vagas && vagas.length > 0) {
+          await supabase
+            .from('pessoas')
+            .delete()
+            .eq('id', vagas[0].id);
+        }
+
+        setSuccess('Funcionário cadastrado com sucesso!' + (vagas?.length > 0 ? ' Vaga em recrutamento removida.' : ''));
       }
 
       fetchFuncionarios();
