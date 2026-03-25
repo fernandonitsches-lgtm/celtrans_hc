@@ -95,8 +95,24 @@ const CadastroFuncionarios = () => {
 
         if (error) throw error;
 
-        // Verificar se existe uma vaga em recrutamento no mesmo setor/operação e deletar
-        const { data: vagas } = await supabase
+        // Deletar qualquer vaga em recrutamento deste colaborador (por nome_anterior)
+        const { data: vagasAntigas } = await supabase
+          .from('pessoas')
+          .select('id')
+          .eq('em_recrutamento', true)
+          .eq('nome_anterior', formData.name);
+
+        if (vagasAntigas && vagasAntigas.length > 0) {
+          for (const vaga of vagasAntigas) {
+            await supabase
+              .from('pessoas')
+              .delete()
+              .eq('id', vaga.id);
+          }
+        }
+
+        // Também deletar vagas no mesmo setor/operação (fallback)
+        const { data: vagasSetor } = await supabase
           .from('pessoas')
           .select('id')
           .eq('em_recrutamento', true)
@@ -104,14 +120,14 @@ const CadastroFuncionarios = () => {
           .eq('operacao', formData.operacao)
           .limit(1);
 
-        if (vagas && vagas.length > 0) {
+        if (vagasSetor && vagasSetor.length > 0) {
           await supabase
             .from('pessoas')
             .delete()
-            .eq('id', vagas[0].id);
+            .eq('id', vagasSetor[0].id);
         }
 
-        setSuccess('Funcionário cadastrado com sucesso!' + (vagas?.length > 0 ? ' Vaga em recrutamento removida.' : ''));
+        setSuccess('Funcionário cadastrado com sucesso!' + ((vagasAntigas?.length > 0 || vagasSetor?.length > 0) ? ' Vaga(s) em recrutamento removida(s).' : ''));
       }
 
       fetchFuncionarios();
