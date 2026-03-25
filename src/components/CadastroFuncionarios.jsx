@@ -167,6 +167,7 @@ const CadastroFuncionarios = () => {
       setor: funcionario.setor,
       operacao: funcionario.operacao,
       de_ferias: funcionario.de_ferias || false,
+      em_recrutamento: false,
     });
     setEditando(true);
     setModalAberto(true);
