@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Edit2, Trash2, AlertCircle, CheckCircle, Loader, Search, X } from 'lucide-react';
+import { Users, Plus, Edit2, Trash2, AlertCircle, CheckCircle, Loader, Search, X, Filter } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
+import { v4 as uuidv4 } from 'uuid';
 
 const supabaseUrl = 'https://fgolrboqzvqqhyklsxsm.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnb2xyYm9xenZxcWh5a2xzeHNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0OTI3MzUsImV4cCI6MjA4NDA2ODczNX0.rFmuEoiJoPnnbCBQ308FAfj1eBQo9Kc0iJSyFPX-xj0';
@@ -12,6 +13,7 @@ const CadastroFuncionarios = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [mostrarVagas, setMostrarVagas] = useState(false);
   const [modalAberto, setModalAberto] = useState(false);
   const [editando, setEditando] = useState(false);
   const [funcionarioSelecionado, setFuncionarioSelecionado] = useState(null);
@@ -88,8 +90,9 @@ const CadastroFuncionarios = () => {
         if (error) throw error;
         setSuccess('Funcionário atualizado com sucesso!');
       } else {
-        // Criar novo funcionário (não enviar id - deixar o banco gerar)
+        // Criar novo funcionário com UUID gerado
         const novoFuncionario = {
+          id: uuidv4(),
           name: formData.name,
           cargo: formData.cargo,
           area: formData.area || '',
@@ -271,13 +274,18 @@ const CadastroFuncionarios = () => {
     });
   };
 
-  const filteredFuncionarios = funcionarios.filter(f =>
-    f.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    f.cargo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    f.operacao.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    f.setor.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (f.area && f.area.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredFuncionarios = funcionarios.filter(f => {
+    const matchesSearch = f.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      f.cargo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      f.operacao.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      f.setor.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (f.area && f.area.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    if (mostrarVagas) {
+      return f.em_recrutamento && matchesSearch;
+    }
+    return !f.em_recrutamento && matchesSearch;
+  });
 
   if (loading && funcionarios.length === 0) {
     return (
@@ -339,17 +347,30 @@ const CadastroFuncionarios = () => {
         </div>
       )}
 
-      {/* Busca */}
+      {/* Busca e Filtro */}
       <div className="bg-white rounded-lg shadow-md p-4">
-        <div className="relative">
-          <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Buscar por nome, cargo, setor, operação ou área..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+        <div className="flex gap-3 items-end">
+          <div className="flex-1 relative">
+            <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Buscar por nome, cargo, setor, operação ou área..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <button
+            onClick={() => setMostrarVagas(!mostrarVagas)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition ${
+              mostrarVagas
+                ? 'bg-purple-600 text-white hover:bg-purple-700'
+                : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+            }`}
+          >
+            <Filter className="w-4 h-4" />
+            {mostrarVagas ? 'Vagas' : 'Funcionários'}
+          </button>
         </div>
       </div>
 
@@ -427,8 +448,8 @@ const CadastroFuncionarios = () => {
 
       {/* Total */}
       <div className="text-sm text-slate-600">
-        Total: <span className="font-semibold">{filteredFuncionarios.length}</span> funcionário(s)
-        {searchTerm && ` (filtrado de ${funcionarios.length})`}
+        Total: <span className="font-semibold">{filteredFuncionarios.length}</span> {mostrarVagas ? 'vaga(s) em recrutamento' : 'funcionário(s)'}
+        {searchTerm && ` (filtrado de ${funcionarios.filter(f => mostrarVagas ? f.em_recrutamento : !f.em_recrutamento).length})`}
       </div>
 
       {/* Modal Cadastro/Edição */}
