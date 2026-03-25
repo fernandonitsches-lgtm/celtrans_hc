@@ -88,10 +88,11 @@ const CadastroFuncionarios = () => {
         if (error) throw error;
         setSuccess('Funcionário atualizado com sucesso!');
       } else {
-        // Criar novo funcionário
+        // Criar novo funcionário (não enviar id - deixar o banco gerar)
+        const { name, cargo, area, setor, operacao, de_ferias, em_recrutamento } = formData;
         const { error } = await supabase
           .from('pessoas')
-          .insert([formData]);
+          .insert([{ name, cargo, area, setor, operacao, de_ferias, em_recrutamento }]);
 
         if (error) throw error;
 

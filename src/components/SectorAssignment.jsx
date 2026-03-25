@@ -717,6 +717,7 @@ const SectorAssignment = () => {
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
                         {setoresSuporte.map(setor => {
                           const pessoas = pessoasSuporte.filter(p => p.setor === setor);
+                          const vagasSetor = vagas.filter(v => v.setor === setor && v.operacao === OP_SUPORTE);
                           return (
                             <div key={setor} className="bg-teal-50 rounded-lg border-2 border-dashed border-teal-200 p-3 min-h-24">
                               <h3 className="font-bold text-slate-700 mb-2 pb-2 border-b-2 border-teal-300 text-xs line-clamp-2">{setor}</h3>
@@ -726,6 +727,16 @@ const SectorAssignment = () => {
                                   <div key={person.id} className="bg-white border-l-4 border-teal-500 p-2 rounded text-xs select-none" title={`${person.name} — Suporte`}>
                                     <div className="font-semibold text-slate-800 line-clamp-2">{person.name}</div>
                                     <div className="text-slate-600 text-xs mt-0.5 line-clamp-1">{person.cargo}</div>
+                                  </div>
+                                ))}
+                                {vagasSetor.map(vaga => (
+                                  <div
+                                    key={`vaga-${vaga.id}`}
+                                    className="bg-purple-50 p-2 rounded border-2 border-dashed border-purple-400 text-xs"
+                                  >
+                                    <div className="font-semibold text-purple-700 line-clamp-2">🔍 Em Recrutamento</div>
+                                    <div className="text-purple-600 text-xs mt-0.5 line-clamp-1">{vaga.cargo}</div>
+                                    {vaga.nome_anterior && <div className="text-purple-500 text-xs mt-0.5">Ant: {vaga.nome_anterior}</div>}
                                   </div>
                                 ))}
                               </div>
