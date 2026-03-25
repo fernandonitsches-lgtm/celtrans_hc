@@ -89,12 +89,29 @@ const CadastroFuncionarios = () => {
         setSuccess('Funcionário atualizado com sucesso!');
       } else {
         // Criar novo funcionário (não enviar id - deixar o banco gerar)
-        const { name, cargo, area, setor, operacao, de_ferias, em_recrutamento } = formData;
-        const { error } = await supabase
-          .from('pessoas')
-          .insert([{ name, cargo, area, setor, operacao, de_ferias, em_recrutamento }]);
+        const novoFuncionario = {
+          name: formData.name,
+          cargo: formData.cargo,
+          area: formData.area || '',
+          setor: formData.setor,
+          operacao: formData.operacao,
+          de_ferias: formData.de_ferias || false,
+          em_recrutamento: false,
+        };
 
-        if (error) throw error;
+        console.log('Enviando novo funcionário:', novoFuncionario);
+
+        const { data, error } = await supabase
+          .from('pessoas')
+          .insert([novoFuncionario])
+          .select();
+
+        if (error) {
+          console.error('Erro Supabase:', error);
+          throw error;
+        }
+
+        console.log('Funcionário criado com sucesso:', data);
 
         // Deletar qualquer vaga em recrutamento deste colaborador (por nome_anterior)
         const { data: vagasAntigas } = await supabase
@@ -144,32 +161,48 @@ const CadastroFuncionarios = () => {
   };
 
   const handleDelete = async (id, nome) => {
-    if (!confirm(`Tem certeza que deseja demitir "${nome}"?\n\nO registro vira uma vaga em recrutamento automaticamente.`)) {
+    const isVaga = nome === 'VAGA EM RECRUTAMENTO';
+    const mensagem = isVaga
+      ? `Tem certeza que deseja excluir esta vaga em recrutamento?`
+      : `Tem certeza que deseja demitir "${nome}"?\n\nO registro vira uma vaga em recrutamento automaticamente.`;
+
+    if (!confirm(mensagem)) {
       return;
     }
 
     try {
       setLoading(true);
 
-      // Em vez de deletar, transforma em vaga em recrutamento
-      const { error } = await supabase
-        .from('pessoas')
-        .update({
-          nome_anterior: nome,
-          name: 'VAGA EM RECRUTAMENTO',
-          de_ferias: false,
-          em_recrutamento: true,
-        })
-        .eq('id', id);
+      if (isVaga) {
+        // Deletar vaga em recrutamento
+        const { error } = await supabase
+          .from('pessoas')
+          .delete()
+          .eq('id', id);
 
-      if (error) throw error;
+        if (error) throw error;
+        setSuccess('Vaga em recrutamento removida!');
+      } else {
+        // Em vez de deletar, transforma em vaga em recrutamento
+        const { error } = await supabase
+          .from('pessoas')
+          .update({
+            nome_anterior: nome,
+            name: 'VAGA EM RECRUTAMENTO',
+            de_ferias: false,
+            em_recrutamento: true,
+          })
+          .eq('id', id);
 
-      setSuccess('Funcionário demitido e vaga aberta em recrutamento!');
+        if (error) throw error;
+        setSuccess('Funcionário demitido e vaga aberta em recrutamento!');
+      }
+
       fetchFuncionarios();
-      
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError('Erro ao demitir: ' + err.message);
+      setError('Erro ao deletar: ' + err.message);
+      console.error('Erro detalhado:', err);
     } finally {
       setLoading(false);
     }
