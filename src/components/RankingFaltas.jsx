@@ -26,6 +26,26 @@ const RankingFaltas = () => {
   useEffect(() => {
     if (mesAno) {
       fetchFaltas();
+
+      // Real-time subscription para atualizações da tabela faltas_diarias
+      const subscription = supabase
+        .channel(`faltas_${mesAno}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'faltas_diarias'
+          },
+          () => {
+            fetchFaltas();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        subscription.unsubscribe();
+      };
     }
   }, [mesAno]);
 

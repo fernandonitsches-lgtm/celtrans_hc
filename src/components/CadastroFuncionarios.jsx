@@ -48,6 +48,26 @@ const CadastroFuncionarios = () => {
 
   useEffect(() => {
     fetchFuncionarios();
+
+    // Real-time subscription para atualizações da tabela pessoas
+    const subscription = supabase
+      .channel('pessoas_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'pessoas'
+        },
+        () => {
+          fetchFuncionarios();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const fetchFuncionarios = async () => {
