@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Plus, Edit2, Trash2, AlertCircle, CheckCircle, Loader, Search, X, Filter } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
-import { v4 as uuidv4 } from 'uuid';
 
 const supabaseUrl = 'https://fgolrboqzvqqhyklsxsm.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnb2xyYm9xenZxcWh5a2xzeHNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0OTI3MzUsImV4cCI6MjA4NDA2ODczNX0.rFmuEoiJoPnnbCBQ308FAfj1eBQo9Kc0iJSyFPX-xj0';
@@ -110,9 +109,8 @@ const CadastroFuncionarios = () => {
         if (error) throw error;
         setSuccess('Funcionário atualizado com sucesso!');
       } else {
-        // Criar novo funcionário com UUID gerado
+        // Criar novo funcionário - ID gerado automaticamente pelo Postgres
         const novoFuncionario = {
-          id: uuidv4(),
           name: formData.name,
           cargo: formData.cargo,
           area: formData.area || '',
