@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { History, Search, Download, ChevronDown, AlertCircle } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
+import * as XLSX from 'xlsx';
 
 const supabaseUrl = 'https://fgolrboqzvqqhyklsxsm.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnb2xyYm9xenZxcWh5a2xzeHNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0OTI3MzUsImV4cCI6MjA4NDA2ODczNX0.rFmuEoiJoPnnbCBQ308FAfj1eBQo9Kc0iJSyFPX-xj0';
@@ -163,42 +164,50 @@ const Historico = () => {
   });
 
   const handleExportHistorico = () => {
-    let csv = 'Data,Tipo,Pessoa,Setor,Cargo,Operação,Justificativa\n';
+    const workbook = XLSX.utils.book_new();
+    const atribuicoesData = [];
+    const faltasData = [];
 
+    // Preparar dados de atribuições
     Object.keys(groupedAtribuicoes).forEach(data => {
       groupedAtribuicoes[data].forEach(a => {
-        const escapedNome = `"${a.pessoa_nome.replace(/"/g, '""')}"`;
-        const escapedSetor = `"${a.setor.replace(/"/g, '""')}"`;
-        const escapedCargo = `"${a.cargo.replace(/"/g, '""')}"`;
-        const escapedOp = `"${a.operacao.replace(/"/g, '""')}"`;
-        csv += `${data},PRESENTE,${escapedNome},${escapedSetor},${escapedCargo},${escapedOp},\n`;
+        atribuicoesData.push({
+          'Data': data,
+          'Tipo': 'PRESENTE',
+          'Pessoa': a.pessoa_nome,
+          'Setor': a.setor,
+          'Cargo': a.cargo,
+          'Operação': a.operacao,
+          'Justificativa': ''
+        });
       });
     });
 
+    // Preparar dados de faltas
     Object.keys(groupedFaltas).forEach(data => {
       groupedFaltas[data].forEach(f => {
-        const escapedNome = `"${f.pessoa_nome.replace(/"/g, '""')}"`;
-        const escapedCargo = `"${f.cargo.replace(/"/g, '""')}"`;
-        const escapedOp = `"${f.operacao.replace(/"/g, '""')}"`;
-        const escapedJust = `"${(f.justificativa || '').replace(/"/g, '""')}"`;
-        csv += `${data},FALTA,${escapedNome},,${escapedCargo},${escapedOp},${escapedJust}\n`;
+        faltasData.push({
+          'Data': data,
+          'Tipo': 'FALTA',
+          'Pessoa': f.pessoa_nome,
+          'Setor': '',
+          'Cargo': f.cargo,
+          'Operação': f.operacao,
+          'Justificativa': f.justificativa || ''
+        });
       });
     });
 
-    const bom = '\uFEFF';
-    const csvWithBom = bom + csv;
-    const blob = new Blob([csvWithBom], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-
-    link.setAttribute('href', url);
-    link.setAttribute('download', `historico_atribuicoes.csv`);
-    link.style.visibility = 'hidden';
-
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    // Combinar dados e adicionar ao workbook
+    const todosOsDados = [...atribuicoesData, ...faltasData];
+    
+    if (todosOsDados.length > 0) {
+      const ws = XLSX.utils.json_to_sheet(todosOsDados);
+      XLSX.utils.book_append_sheet(workbook, ws, 'Histórico');
+    }
+    
+    // Gerar e baixar arquivo
+    XLSX.writeFile(workbook, `historico_atribuicoes.xlsx`);
   };
 
   if (loading) {
@@ -227,7 +236,7 @@ const Historico = () => {
             className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition"
           >
             <Download className="w-4 h-4" />
-            Exportar CSV
+            Exportar XLSX
           </button>
         </div>
 

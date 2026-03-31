@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Calendar, Download, RotateCcw, Users, ChevronDown, BarChart3, Search, Filter, AlertCircle } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
+import * as XLSX from 'xlsx';
 import ModalSalvar from './ModalSalvar';
 
 // Inicializar Supabase
@@ -366,46 +367,55 @@ const SectorAssignment = () => {
   };
 
   const handleExport = () => {
-    let csv = 'Data,Operação,Setor,Nome,Cargo,Area\n';
+    const workbook = XLSX.utils.book_new();
     
+    // Preparar dados de atribuições
+    const atribuicoesData = [];
     Object.keys(assignments).forEach(key => {
       if (key !== 'falta' && assignments[key]) {
         const setor = key.includes('||') ? key.split('||')[1] : key;
         assignments[key].forEach(person => {
-          const escapedName = `"${person.name.replace(/"/g, '""')}"`;
-          const escapedSetor = `"${setor.replace(/"/g, '""')}"`;
-          const escapedCargo = `"${person.cargo.replace(/"/g, '""')}"`;
-          const escapedArea = `"${person.area.replace(/"/g, '""')}"`;
-          const escapedOp = `"${person.operacao.replace(/"/g, '""')}"`;
-          csv += `${today},${escapedOp},${escapedSetor},${escapedName},${escapedCargo},${escapedArea}\n`;
+          atribuicoesData.push({
+            'Data': today,
+            'Operação': person.operacao,
+            'Setor': setor,
+            'Nome': person.name,
+            'Cargo': person.cargo,
+            'Área': person.area
+          });
         });
       }
     });
-
+    
+    // Preparar dados de faltas
+    const faltasData = [];
     if (assignments['falta'] && assignments['falta'].length > 0) {
-      csv += '\n\nFALTAS\nData,Nome,Cargo,Area,Operação,Justificativa\n';
       assignments['falta'].forEach(person => {
         const justificativa = justificativas[person.id] || '';
-        const escapedName = `"${person.name.replace(/"/g, '""')}"`;
-        const escapedCargo = `"${person.cargo.replace(/"/g, '""')}"`;
-        const escapedArea = `"${person.area.replace(/"/g, '""')}"`;
-        const escapedOp = `"${person.operacao.replace(/"/g, '""')}"`;
-        const escapedJustificativa = `"${justificativa.replace(/"/g, '""')}"`;
-        csv += `${today},${escapedName},${escapedCargo},${escapedArea},${escapedOp},${escapedJustificativa}\n`;
+        faltasData.push({
+          'Data': today,
+          'Nome': person.name,
+          'Cargo': person.cargo,
+          'Área': person.area,
+          'Operação': person.operacao,
+          'Justificativa': justificativa
+        });
       });
     }
-
-    const bom = '\uFEFF';
-    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `atribuicao_${today.replace(/\//g, '-')}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    
+    // Adicionar sheets ao workbook
+    if (atribuicoesData.length > 0) {
+      const wsAtribuicoes = XLSX.utils.json_to_sheet(atribuicoesData);
+      XLSX.utils.book_append_sheet(workbook, wsAtribuicoes, 'Atribuições');
+    }
+    
+    if (faltasData.length > 0) {
+      const wsFaltas = XLSX.utils.json_to_sheet(faltasData);
+      XLSX.utils.book_append_sheet(workbook, wsFaltas, 'Faltas');
+    }
+    
+    // Gerar e baixar arquivo
+    XLSX.writeFile(workbook, `atribuicao_${today.replace(/\//g, '-')}.xlsx`);
   };
 
   const getMetricasOperacao = (operacao) => {
@@ -646,7 +656,7 @@ const SectorAssignment = () => {
                 className="flex items-center gap-2 px-3 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 transition"
               >
                 <Download className="w-4 h-4" />
-                Exportar CSV
+                Exportar XLSX
               </button>
             </div>
           </div>
