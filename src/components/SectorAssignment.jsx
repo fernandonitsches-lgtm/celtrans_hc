@@ -25,6 +25,9 @@ const SectorAssignment = () => {
   const [error, setError] = useState(null);
   const [operacoes, setOperacoes] = useState([]);
   const [dragOver, setDragOver] = useState(null); // chave do setor com hover
+  const [isHistoricalData, setIsHistoricalData] = useState(false);
+  const [historicalAtribuicoes, setHistoricalAtribuicoes] = useState([]);
+  const [historicalFaltas, setHistoricalFaltas] = useState([]);
 
   // ── Auto-scroll durante drag ──
   const scrollIntervalRef = useRef(null);
@@ -103,6 +106,83 @@ const SectorAssignment = () => {
     fetchPeople();
   }, []);
 
+  // Carregar dados históricos quando a data mudar
+  useEffect(() => {
+    const todayDate = new Date().toISOString().split('T')[0];
+    const isHistorical = today !== todayDate;
+    setIsHistoricalData(isHistorical);
+
+    if (isHistorical) {
+      // Carregar dados salvos para a data selecionada
+      const loadHistoricalData = async () => {
+        try {
+          setLoading(true);
+          const { data: atribData, error: atribError } = await supabase
+            .from('atribuicoes_diarias')
+            .select('*')
+            .eq('data', today)
+            .order('setor', { ascending: true });
+
+          const { data: faltasData, error: faltasError } = await supabase
+            .from('faltas_diarias')
+            .select('*')
+            .eq('data', today);
+
+          if (atribError) throw atribError;
+          if (faltasError) throw faltasError;
+
+          setHistoricalAtribuicoes(atribData || []);
+          setHistoricalFaltas(faltasData || []);
+
+          // Reconstruir assignments a partir dos dados históricos
+          const historicalAssignments = { 'falta': [] };
+          if (atribData) {
+            atribData.forEach(a => {
+              const key = `${a.operacao}||${a.setor}`;
+              if (!historicalAssignments[key]) {
+                historicalAssignments[key] = [];
+              }
+              historicalAssignments[key].push({
+                id: a.pessoa_id,
+                name: a.pessoa_nome,
+                setor: a.setor,
+                operacao: a.operacao,
+                cargo: a.cargo,
+                area: a.area
+              });
+            });
+          }
+
+          if (faltasData) {
+            faltasData.forEach(f => {
+              historicalAssignments['falta'].push({
+                id: f.pessoa_id,
+                name: f.pessoa_nome,
+                operacao: f.operacao,
+                cargo: f.cargo,
+                justificativa: f.justificativa || ''
+              });
+            });
+          }
+
+          setAssignments(historicalAssignments);
+          setLoading(false);
+        } catch (err) {
+          console.error('Erro ao carregar dados históricos:', err);
+          setError('Erro ao carregar dados históricos: ' + err.message);
+          setLoading(false);
+        }
+      };
+
+      loadHistoricalData();
+    } else {
+      // Se voltou para hoje, reinicializar com dados atuais
+      setHistoricalAtribuicoes([]);
+      setHistoricalFaltas([]);
+      initializeAssignments();
+    }
+  }, [today]);
+
   const makeKey = (op, st) => `${op}||${st}`;
   const vagas = initialPeople.filter(p => p.em_recrutamento);
 
@@ -178,7 +258,7 @@ const SectorAssignment = () => {
   };
 
   const handleDrop = (target) => {
-    if (!draggedPerson) return;
+    if (!draggedPerson || isHistoricalData) return;
     const { person, source } = draggedPerson;
     setAssignments(prev => {
       const newAssignments = { ...prev };
@@ -195,6 +275,10 @@ const SectorAssignment = () => {
   };
 
   const handleReset = () => {
+    if (isHistoricalData) {
+      alert('Não é possível modificar dados históricos');
+      return;
+    }
     if (confirm('Tem certeza que deseja restaurar todas as atribuições?')) {
       initializeAssignments();
       setJustificativas({});
@@ -202,6 +286,7 @@ const SectorAssignment = () => {
   };
 
   const handleJustificativa = (personId, texto) => {
+    if (isHistoricalData) return;
     setJustificativas(prev => ({
       ...prev,
       [personId]: texto
@@ -209,6 +294,10 @@ const SectorAssignment = () => {
   };
 
   const handleSalvar = async () => {
+    if (isHistoricalData) {
+      alert('Não é possível salvar dados históricos. Use a data de hoje para fazer edições.');
+      return;
+    }
     setModalAberto(true);
   };
 
@@ -478,15 +567,33 @@ const SectorAssignment = () => {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <Calendar className="w-8 h-8 text-blue-600" />
-            <h1 className="text-2xl md:text-3xl font-bold text-slate-800">Atribuição Diária</h1>
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-slate-800">Atribuição Diária</h1>
+              {isHistoricalData && (
+                <div className="mt-1 text-sm font-semibold text-amber-600 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  Visualizando dados históricos - modo somente leitura
+                </div>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <input
-              type="date"
-              value={today}
-              onChange={(e) => setToday(e.target.value)}
-              className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-            />
+          <div className="flex items-center gap-3 flex-col">
+            <div className="flex items-center gap-3">
+              <input
+                type="date"
+                value={today}
+                onChange={(e) => setToday(e.target.value)}
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+              {isHistoricalData && (
+                <button
+                  onClick={() => setToday(new Date().toISOString().split('T')[0])}
+                  className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition"
+                >
+                  ← Hoje
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -505,7 +612,12 @@ const SectorAssignment = () => {
             <div className="flex gap-2 flex-wrap">
               <button
                 onClick={handleSalvar}
-                className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition"
+                disabled={isHistoricalData}
+                className={`flex items-center gap-2 px-3 py-2 text-white text-sm rounded-lg transition ${
+                  isHistoricalData
+                    ? 'bg-gray-400 cursor-not-allowed opacity-60'
+                    : 'bg-green-600 hover:bg-green-700'
+                }`}
               >
                 <Download className="w-4 h-4" />
                 Salvar
@@ -519,7 +631,12 @@ const SectorAssignment = () => {
               </button>
               <button
                 onClick={handleReset}
-                className="flex items-center gap-2 px-3 py-2 bg-slate-500 text-white text-sm rounded-lg hover:bg-slate-600 transition"
+                disabled={isHistoricalData}
+                className={`flex items-center gap-2 px-3 py-2 text-white text-sm rounded-lg transition ${
+                  isHistoricalData
+                    ? 'bg-gray-400 cursor-not-allowed opacity-60'
+                    : 'bg-slate-500 hover:bg-slate-600'
+                }`}
               >
                 <RotateCcw className="w-4 h-4" />
                 Restaurar
@@ -613,11 +730,13 @@ const SectorAssignment = () => {
                         return (
                           <div
                             key={setor}
-                            onDragOver={(e) => handleDragOver(e, makeKey(operacao, setor))}
-                            onDragLeave={handleDragLeave}
-                            onDrop={() => handleDrop(makeKey(operacao, setor))}
+                            onDragOver={!isHistoricalData ? (e) => handleDragOver(e, makeKey(operacao, setor)) : undefined}
+                            onDragLeave={!isHistoricalData ? handleDragLeave : undefined}
+                            onDrop={!isHistoricalData ? () => handleDrop(makeKey(operacao, setor)) : undefined}
                             className={`rounded-lg border-2 border-dashed p-3 min-h-64 transition-colors ${
-                              dragOver === makeKey(operacao, setor)
+                              isHistoricalData
+                                ? 'bg-slate-100 border-slate-300 opacity-75'
+                                : dragOver === makeKey(operacao, setor)
                                 ? 'bg-blue-100 border-blue-500 shadow-inner'
                                 : 'bg-blue-50 border-blue-200'
                             }`}
@@ -634,10 +753,20 @@ const SectorAssignment = () => {
                                 return (
                                   <div
                                     key={person.id}
-                                    draggable
+                                    draggable={!isHistoricalData}
                                     onDragStart={() => handleDragStart(person, makeKey(operacao, setor))}
-                                    title={visitante ? `${person.name} — veio de: ${initialPeople.find(p=>p.id===person.id)?.setor}` : person.name}
-                                    className={`p-2 rounded cursor-grab active:cursor-grabbing hover:shadow-md active:opacity-50 active:scale-95 transition-all text-xs ${
+                                    title={
+                                      isHistoricalData
+                                        ? `${person.name} (modo histórico - visualização apenas)`
+                                        : visitante
+                                        ? `${person.name} — veio de: ${initialPeople.find(p=>p.id===person.id)?.setor}`
+                                        : person.name
+                                    }
+                                    className={`p-2 rounded transition-all text-xs ${
+                                      isHistoricalData
+                                        ? 'cursor-default opacity-75'
+                                        : 'cursor-grab active:cursor-grabbing hover:shadow-md active:opacity-50 active:scale-95'
+                                    } ${
                                       visitante
                                         ? 'bg-amber-50 border-l-4 border-amber-400 border border-amber-200'
                                         : 'bg-white border-l-4 border-blue-500'
@@ -763,22 +892,30 @@ const SectorAssignment = () => {
                 </span>
               </div>
               <div
-                onDragOver={(e) => handleDragOver(e, 'falta')}
-                onDragLeave={handleDragLeave}
-                onDrop={() => handleDrop('falta')}
+                onDragOver={!isHistoricalData ? (e) => handleDragOver(e, 'falta') : undefined}
+                onDragLeave={!isHistoricalData ? handleDragLeave : undefined}
+                onDrop={!isHistoricalData ? () => handleDrop('falta') : undefined}
                 className={`p-2 min-h-24 space-y-1 transition-colors rounded-b-lg ${
-                  dragOver === 'falta' ? 'bg-red-100' : ''
+                  isHistoricalData
+                    ? 'bg-gray-100'
+                    : dragOver === 'falta'
+                    ? 'bg-red-100'
+                    : ''
                 }`}
               >
                 {(filteredPeople(assignments['falta'])?.length === 0) && (
-                  <p className="text-xs text-red-300 italic text-center mt-4">Arraste aqui</p>
+                  <p className="text-xs text-red-300 italic text-center mt-4">{isHistoricalData ? 'Sem faltas' : 'Arraste aqui'}</p>
                 )}
                 {filteredPeople(assignments['falta'])?.map(person => (
                   <div
                     key={person.id}
-                    draggable
+                    draggable={!isHistoricalData}
                     onDragStart={() => handleDragStart(person, 'falta')}
-                    className="bg-white border-l-4 border-red-500 p-2 rounded cursor-grab active:cursor-grabbing active:opacity-50 active:scale-95 hover:shadow-md transition-all text-xs"
+                    className={`bg-white border-l-4 border-red-500 p-2 rounded transition-all text-xs ${
+                      isHistoricalData
+                        ? 'cursor-default opacity-75'
+                        : 'cursor-grab active:cursor-grabbing active:opacity-50 active:scale-95 hover:shadow-md'
+                    }`}
                   >
                     <div className="font-semibold text-red-900 line-clamp-2">{person.name}</div>
                     <div className="text-red-600 text-xs mt-0.5 line-clamp-1">{person.cargo}</div>
