@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { History, Search, Download, ChevronDown, AlertCircle } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 const supabaseUrl = 'https://fgolrboqzvqqhyklsxsm.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnb2xyYm9xenZxcWh5a2xzeHNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0OTI3MzUsImV4cCI6MjA4NDA2ODczNX0.rFmuEoiJoPnnbCBQ308FAfj1eBQo9Kc0iJSyFPX-xj0';
@@ -163,15 +163,23 @@ const Historico = () => {
     groupedFaltas[f.data].push(f);
   });
 
-  const handleExportHistorico = () => {
-    const workbook = XLSX.utils.book_new();
-    const atribuicoesData = [];
-    const faltasData = [];
+  const handleExportHistorico = async () => {
+    const workbook = new ExcelJS.Workbook();
+    const ws = workbook.addWorksheet('Histórico');
+    ws.columns = [
+      { header: 'Data', key: 'Data', width: 12 },
+      { header: 'Tipo', key: 'Tipo', width: 12 },
+      { header: 'Pessoa', key: 'Pessoa', width: 20 },
+      { header: 'Setor', key: 'Setor', width: 15 },
+      { header: 'Cargo', key: 'Cargo', width: 15 },
+      { header: 'Operação', key: 'Operação', width: 15 },
+      { header: 'Justificativa', key: 'Justificativa', width: 30 }
+    ];
 
-    // Preparar dados de atribuições
+    // Adicionar dados de atribuições
     Object.keys(groupedAtribuicoes).forEach(data => {
       groupedAtribuicoes[data].forEach(a => {
-        atribuicoesData.push({
+        ws.addRow({
           'Data': data,
           'Tipo': 'PRESENTE',
           'Pessoa': a.pessoa_nome,
@@ -183,10 +191,10 @@ const Historico = () => {
       });
     });
 
-    // Preparar dados de faltas
+    // Adicionar dados de faltas
     Object.keys(groupedFaltas).forEach(data => {
       groupedFaltas[data].forEach(f => {
-        faltasData.push({
+        ws.addRow({
           'Data': data,
           'Tipo': 'FALTA',
           'Pessoa': f.pessoa_nome,
@@ -197,17 +205,16 @@ const Historico = () => {
         });
       });
     });
-
-    // Combinar dados e adicionar ao workbook
-    const todosOsDados = [...atribuicoesData, ...faltasData];
-    
-    if (todosOsDados.length > 0) {
-      const ws = XLSX.utils.json_to_sheet(todosOsDados);
-      XLSX.utils.book_append_sheet(workbook, ws, 'Histórico');
-    }
     
     // Gerar e baixar arquivo
-    XLSX.writeFile(workbook, `historico_atribuicoes.xlsx`);
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `historico_atribuicoes.xlsx`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   if (loading) {

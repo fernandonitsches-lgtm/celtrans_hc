@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Calendar, Download, RotateCcw, Users, ChevronDown, BarChart3, Search, Filter, AlertCircle } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import ModalSalvar from './ModalSalvar';
 
 // Inicializar Supabase
@@ -366,16 +366,26 @@ const SectorAssignment = () => {
     }
   };
 
-  const handleExport = () => {
-    const workbook = XLSX.utils.book_new();
+  const handleExport = async () => {
+    const workbook = new ExcelJS.Workbook();
     
-    // Preparar dados de atribuições
-    const atribuicoesData = [];
+    // Adicionar sheet de Atribuições
+    const wsAtribuicoes = workbook.addWorksheet('Atribuições');
+    wsAtribuicoes.columns = [
+      { header: 'Data', key: 'Data', width: 12 },
+      { header: 'Operação', key: 'Operação', width: 15 },
+      { header: 'Setor', key: 'Setor', width: 15 },
+      { header: 'Nome', key: 'Nome', width: 20 },
+      { header: 'Cargo', key: 'Cargo', width: 15 },
+      { header: 'Área', key: 'Área', width: 15 }
+    ];
+    
+    // Adicionar dados de atribuições
     Object.keys(assignments).forEach(key => {
       if (key !== 'falta' && assignments[key]) {
         const setor = key.includes('||') ? key.split('||')[1] : key;
         assignments[key].forEach(person => {
-          atribuicoesData.push({
+          wsAtribuicoes.addRow({
             'Data': today,
             'Operação': person.operacao,
             'Setor': setor,
@@ -387,12 +397,21 @@ const SectorAssignment = () => {
       }
     });
     
-    // Preparar dados de faltas
-    const faltasData = [];
+    // Adicionar sheet de Faltas
     if (assignments['falta'] && assignments['falta'].length > 0) {
+      const wsFaltas = workbook.addWorksheet('Faltas');
+      wsFaltas.columns = [
+        { header: 'Data', key: 'Data', width: 12 },
+        { header: 'Nome', key: 'Nome', width: 20 },
+        { header: 'Cargo', key: 'Cargo', width: 15 },
+        { header: 'Área', key: 'Área', width: 15 },
+        { header: 'Operação', key: 'Operação', width: 15 },
+        { header: 'Justificativa', key: 'Justificativa', width: 30 }
+      ];
+      
       assignments['falta'].forEach(person => {
         const justificativa = justificativas[person.id] || '';
-        faltasData.push({
+        wsFaltas.addRow({
           'Data': today,
           'Nome': person.name,
           'Cargo': person.cargo,
@@ -403,19 +422,15 @@ const SectorAssignment = () => {
       });
     }
     
-    // Adicionar sheets ao workbook
-    if (atribuicoesData.length > 0) {
-      const wsAtribuicoes = XLSX.utils.json_to_sheet(atribuicoesData);
-      XLSX.utils.book_append_sheet(workbook, wsAtribuicoes, 'Atribuições');
-    }
-    
-    if (faltasData.length > 0) {
-      const wsFaltas = XLSX.utils.json_to_sheet(faltasData);
-      XLSX.utils.book_append_sheet(workbook, wsFaltas, 'Faltas');
-    }
-    
     // Gerar e baixar arquivo
-    XLSX.writeFile(workbook, `atribuicao_${today.replace(/\//g, '-')}.xlsx`);
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `atribuicao_${today.replace(/\//g, '-')}.xlsx`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   const getMetricasOperacao = (operacao) => {
