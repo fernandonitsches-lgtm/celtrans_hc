@@ -109,8 +109,9 @@ const CadastroFuncionarios = () => {
         if (error) throw error;
         setSuccess('Funcionário atualizado com sucesso!');
       } else {
-        // Criar novo funcionário - ID gerado automaticamente pelo Postgres
+        // Criar novo funcionário - UUID gerado no front
         const novoFuncionario = {
+          id: crypto.randomUUID(),
           name: formData.name,
           cargo: formData.cargo,
           area: formData.area || '',
