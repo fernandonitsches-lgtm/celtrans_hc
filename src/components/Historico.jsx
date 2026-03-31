@@ -26,6 +26,20 @@ const Historico = () => {
     fetchHistorico();
   }, []);
 
+  // Recarrega dados quando a data do filtro muda
+  useEffect(() => {
+    if (filterData) {
+      fetchHistoricoByDate(filterData);
+    }
+  }, [filterData]);
+
+  // Recarrega dados quando o período é alterado
+  useEffect(() => {
+    if (!filterData) {
+      fetchHistorico();
+    }
+  }, [periodoFiltro]);
+
   const fetchHistorico = async () => {
     try {
       setLoading(true);
@@ -52,6 +66,37 @@ const Historico = () => {
       setFaltas(faltasData || []);
     } catch (err) {
       setError('Erro ao carregar histórico: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchHistoricoByDate = async (data) => {
+    try {
+      setLoading(true);
+      setError('');
+
+      // Buscar atribuições para a data específica
+      const { data: atrib, error: atribError } = await supabase
+        .from('atribuicoes_diarias')
+        .select('*')
+        .eq('data', data)
+        .order('pessoa_nome', { ascending: true });
+
+      // Buscar faltas para a data específica
+      const { data: faltasData, error: faltasError } = await supabase
+        .from('faltas_diarias')
+        .select('*')
+        .eq('data', data)
+        .order('pessoa_nome', { ascending: true });
+
+      if (atribError) throw atribError;
+      if (faltasError) throw faltasError;
+
+      setAtribuicoes(atrib || []);
+      setFaltas(faltasData || []);
+    } catch (err) {
+      setError('Erro ao carregar dados da data selecionada: ' + err.message);
     } finally {
       setLoading(false);
     }
