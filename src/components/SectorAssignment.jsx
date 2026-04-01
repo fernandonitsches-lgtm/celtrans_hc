@@ -556,7 +556,7 @@ const SectorAssignment = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center">
                 <div className="text-3xl font-bold text-blue-600">{initialPeople.filter(p => !isSuporte(p)).length}</div>
-                <div className="text-sm text-slate-600 mt-1">Total (sem Suporte)</div>
+                <div className="text-sm text-slate-600 mt-1">Total (Com Suporte)</div>
               </div>
               <div className="text-center">
                 <div className="text-3xl font-bold text-green-600">{totalAtribuido}</div>
