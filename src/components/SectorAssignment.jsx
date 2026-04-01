@@ -825,7 +825,7 @@ const SectorAssignment = () => {
                                     key={`vaga-${vaga.id}`}
                                     className="bg-purple-50 p-2 rounded border-2 border-dashed border-purple-400 text-xs"
                                   >
-                                    <div className="font-semibold text-purple-700 line-clamp-2">🔍 Em Recrutamento</div>
+                                    <div className="font-semibold text-purple-700 line-clamp-2"> Em Recrutamento</div>
                                     <div className="text-purple-600 text-xs mt-0.5 line-clamp-1">{vaga.cargo}</div>
                                     {vaga.nome_anterior && <div className="text-purple-500 text-xs mt-0.5">Ant: {vaga.nome_anterior}</div>}
                                   </div>
@@ -888,7 +888,7 @@ const SectorAssignment = () => {
                                     key={`vaga-${vaga.id}`}
                                     className="bg-purple-50 p-2 rounded border-2 border-dashed border-purple-400 text-xs"
                                   >
-                                    <div className="font-semibold text-purple-700 line-clamp-2">🔍 Em Recrutamento</div>
+                                    <div className="font-semibold text-purple-700 line-clamp-2"> Em Recrutamento</div>
                                     <div className="text-purple-600 text-xs mt-0.5 line-clamp-1">{vaga.cargo}</div>
                                     {vaga.nome_anterior && <div className="text-purple-500 text-xs mt-0.5">Ant: {vaga.nome_anterior}</div>}
                                   </div>
@@ -953,7 +953,7 @@ const SectorAssignment = () => {
             {/* FÉRIAS */}
             <div className="bg-orange-50 rounded-lg shadow-md border-2 border-orange-200 overflow-hidden">
               <div className="bg-orange-400 px-3 py-2 flex items-center justify-between">
-                <span className="font-bold text-white text-sm">🏖️ FÉRIAS</span>
+                <span className="font-bold text-white text-sm"> FÉRIAS</span>
                 <span className="bg-orange-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
                   {pessoasEmFerias.length}
                 </span>
@@ -978,7 +978,7 @@ const SectorAssignment = () => {
             {/* EM RECRUTAMENTO */}
             <div className="bg-purple-50 rounded-lg shadow-md border-2 border-purple-200 overflow-hidden">
               <div className="bg-purple-500 px-3 py-2 flex items-center justify-between">
-                <span className="font-bold text-white text-sm">🔍 RECRUTAMENTO</span>
+                <span className="font-bold text-white text-sm"> RECRUTAMENTO</span>
                 <span className="bg-purple-700 text-white text-xs font-bold px-2 py-0.5 rounded-full">
                   {vagas.length}
                 </span>
