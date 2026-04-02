@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Calendar, Download, RotateCcw, Users, ChevronDown, BarChart3, Search, Filter, AlertCircle } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
+import ExcelJS from 'exceljs';
 import ModalSalvar from './ModalSalvar';
 
 // Inicializar Supabase
@@ -276,46 +277,55 @@ const SectorAssignment = () => {
     }
   };
 
-  const handleExport = () => {
-    let csv = 'Data,Operação,Setor,Nome,Cargo,Area\n';
-    
+  const handleExport = async () => {
+    const workbook = new ExcelJS.Workbook();
+
+    const wsAtribuicoes = workbook.addWorksheet('Atribuições');
+    wsAtribuicoes.columns = [
+      { header: 'Data', key: 'Data', width: 12 },
+      { header: 'Operação', key: 'Operacao', width: 20 },
+      { header: 'Setor', key: 'Setor', width: 20 },
+      { header: 'Nome', key: 'Nome', width: 35 },
+      { header: 'Cargo', key: 'Cargo', width: 25 },
+      { header: 'Área', key: 'Area', width: 20 },
+    ];
+
     Object.keys(assignments).forEach(key => {
       if (key !== 'falta' && assignments[key]) {
         const setor = key.includes('||') ? key.split('||')[1] : key;
         assignments[key].forEach(person => {
-          const escapedName = `"${person.name.replace(/"/g, '""')}"`;
-          const escapedSetor = `"${setor.replace(/"/g, '""')}"`;
-          const escapedCargo = `"${person.cargo.replace(/"/g, '""')}"`;
-          const escapedArea = `"${person.area.replace(/"/g, '""')}"`;
-          const escapedOp = `"${person.operacao.replace(/"/g, '""')}"`;
-          csv += `${today},${escapedOp},${escapedSetor},${escapedName},${escapedCargo},${escapedArea}\n`;
+          wsAtribuicoes.addRow({
+            Data: today, Operacao: person.operacao, Setor: setor,
+            Nome: person.name, Cargo: person.cargo, Area: person.area
+          });
         });
       }
     });
 
     if (assignments['falta'] && assignments['falta'].length > 0) {
-      csv += '\n\nFALTAS\nData,Nome,Cargo,Area,Operação,Justificativa\n';
+      const wsFaltas = workbook.addWorksheet('Faltas');
+      wsFaltas.columns = [
+        { header: 'Data', key: 'Data', width: 12 },
+        { header: 'Nome', key: 'Nome', width: 35 },
+        { header: 'Cargo', key: 'Cargo', width: 25 },
+        { header: 'Operação', key: 'Operacao', width: 20 },
+        { header: 'Justificativa', key: 'Justificativa', width: 40 },
+      ];
       assignments['falta'].forEach(person => {
-        const justificativa = justificativas[person.id] || '';
-        const escapedName = `"${person.name.replace(/"/g, '""')}"`;
-        const escapedCargo = `"${person.cargo.replace(/"/g, '""')}"`;
-        const escapedArea = `"${person.area.replace(/"/g, '""')}"`;
-        const escapedOp = `"${person.operacao.replace(/"/g, '""')}"`;
-        const escapedJustificativa = `"${justificativa.replace(/"/g, '""')}"`;
-        csv += `${today},${escapedName},${escapedCargo},${escapedArea},${escapedOp},${escapedJustificativa}\n`;
+        wsFaltas.addRow({
+          Data: today, Nome: person.name, Cargo: person.cargo,
+          Operacao: person.operacao, Justificativa: justificativas[person.id] || ''
+        });
       });
     }
 
-    const bom = '\uFEFF';
-    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `atribuicao_${today.replace(/\//g, '-')}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `atribuicao_${today}.xlsx`;
     link.click();
-    document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
 
@@ -537,7 +547,7 @@ const SectorAssignment = () => {
                 className="flex items-center gap-2 px-3 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 transition"
               >
                 <Download className="w-4 h-4" />
-                Exportar CSV
+                Exportar XLSX
               </button>
             </div>
           </div>
@@ -679,7 +689,7 @@ const SectorAssignment = () => {
                                     key={`vaga-${vaga.id}`}
                                     className="bg-purple-50 p-2 rounded border-2 border-dashed border-purple-400 text-xs"
                                   >
-                                    <div className="font-semibold text-purple-700 line-clamp-2">Em Recrutamento</div>
+                                    <div className="font-semibold text-purple-700 line-clamp-2">🔍 Em Recrutamento</div>
                                     <div className="text-purple-600 text-xs mt-0.5 line-clamp-1">{vaga.cargo}</div>
                                     {vaga.nome_anterior && <div className="text-purple-500 text-xs mt-0.5">Ant: {vaga.nome_anterior}</div>}
                                   </div>
@@ -742,7 +752,7 @@ const SectorAssignment = () => {
                                     key={`vaga-${vaga.id}`}
                                     className="bg-purple-50 p-2 rounded border-2 border-dashed border-purple-400 text-xs"
                                   >
-                                    <div className="font-semibold text-purple-700 line-clamp-2">Em Recrutamento</div>
+                                    <div className="font-semibold text-purple-700 line-clamp-2">🔍 Em Recrutamento</div>
                                     <div className="text-purple-600 text-xs mt-0.5 line-clamp-1">{vaga.cargo}</div>
                                     {vaga.nome_anterior && <div className="text-purple-500 text-xs mt-0.5">Ant: {vaga.nome_anterior}</div>}
                                   </div>
@@ -799,7 +809,7 @@ const SectorAssignment = () => {
             {/* FÉRIAS */}
             <div className="bg-orange-50 rounded-lg shadow-md border-2 border-orange-200 overflow-hidden">
               <div className="bg-orange-400 px-3 py-2 flex items-center justify-between">
-                <span className="font-bold text-white text-sm">FÉRIAS</span>
+                <span className="font-bold text-white text-sm">🏖️ FÉRIAS</span>
                 <span className="bg-orange-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
                   {pessoasEmFerias.length}
                 </span>
@@ -824,7 +834,7 @@ const SectorAssignment = () => {
             {/* EM RECRUTAMENTO */}
             <div className="bg-purple-50 rounded-lg shadow-md border-2 border-purple-200 overflow-hidden">
               <div className="bg-purple-500 px-3 py-2 flex items-center justify-between">
-                <span className="font-bold text-white text-sm">RECRUTAMENTO</span>
+                <span className="font-bold text-white text-sm">🔍 RECRUTAMENTO</span>
                 <span className="bg-purple-700 text-white text-xs font-bold px-2 py-0.5 rounded-full">
                   {vagas.length}
                 </span>
