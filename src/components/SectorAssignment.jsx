@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Calendar, Download, RotateCcw, Users, ChevronDown, BarChart3, Search, Filter, AlertCircle } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
-import ExcelJS from 'exceljs';
 import ModalSalvar from './ModalSalvar';
 
 // Inicializar Supabase
@@ -26,9 +25,6 @@ const SectorAssignment = () => {
   const [error, setError] = useState(null);
   const [operacoes, setOperacoes] = useState([]);
   const [dragOver, setDragOver] = useState(null); // chave do setor com hover
-  const [isHistoricalData, setIsHistoricalData] = useState(false);
-  const [historicalAtribuicoes, setHistoricalAtribuicoes] = useState([]);
-  const [historicalFaltas, setHistoricalFaltas] = useState([]);
 
   // ── Auto-scroll durante drag ──
   const scrollIntervalRef = useRef(null);
@@ -107,83 +103,6 @@ const SectorAssignment = () => {
     fetchPeople();
   }, []);
 
-  // Carregar dados históricos quando a data mudar
-  useEffect(() => {
-    const todayDate = new Date().toISOString().split('T')[0];
-    const isHistorical = today !== todayDate;
-    setIsHistoricalData(isHistorical);
-
-    if (isHistorical) {
-      // Carregar dados salvos para a data selecionada
-      const loadHistoricalData = async () => {
-        try {
-          setLoading(true);
-          const { data: atribData, error: atribError } = await supabase
-            .from('atribuicoes_diarias')
-            .select('*')
-            .eq('data', today)
-            .order('setor', { ascending: true });
-
-          const { data: faltasData, error: faltasError } = await supabase
-            .from('faltas_diarias')
-            .select('*')
-            .eq('data', today);
-
-          if (atribError) throw atribError;
-          if (faltasError) throw faltasError;
-
-          setHistoricalAtribuicoes(atribData || []);
-          setHistoricalFaltas(faltasData || []);
-
-          // Reconstruir assignments a partir dos dados históricos
-          const historicalAssignments = { 'falta': [] };
-          if (atribData) {
-            atribData.forEach(a => {
-              const key = `${a.operacao}||${a.setor}`;
-              if (!historicalAssignments[key]) {
-                historicalAssignments[key] = [];
-              }
-              historicalAssignments[key].push({
-                id: a.pessoa_id,
-                name: a.pessoa_nome,
-                setor: a.setor,
-                operacao: a.operacao,
-                cargo: a.cargo,
-                area: a.area
-              });
-            });
-          }
-
-          if (faltasData) {
-            faltasData.forEach(f => {
-              historicalAssignments['falta'].push({
-                id: f.pessoa_id,
-                name: f.pessoa_nome,
-                operacao: f.operacao,
-                cargo: f.cargo,
-                justificativa: f.justificativa || ''
-              });
-            });
-          }
-
-          setAssignments(historicalAssignments);
-          setLoading(false);
-        } catch (err) {
-          console.error('Erro ao carregar dados históricos:', err);
-          setError('Erro ao carregar dados históricos: ' + err.message);
-          setLoading(false);
-        }
-      };
-
-      loadHistoricalData();
-    } else {
-      // Se voltou para hoje, reinicializar com dados atuais
-      setHistoricalAtribuicoes([]);
-      setHistoricalFaltas([]);
-      initializeAssignments();
-    }
-  }, [today]);
-
   const makeKey = (op, st) => `${op}||${st}`;
   const vagas = initialPeople.filter(p => p.em_recrutamento);
 
@@ -259,7 +178,7 @@ const SectorAssignment = () => {
   };
 
   const handleDrop = (target) => {
-    if (!draggedPerson || isHistoricalData) return;
+    if (!draggedPerson) return;
     const { person, source } = draggedPerson;
     setAssignments(prev => {
       const newAssignments = { ...prev };
@@ -276,10 +195,6 @@ const SectorAssignment = () => {
   };
 
   const handleReset = () => {
-    if (isHistoricalData) {
-      alert('Não é possível modificar dados históricos');
-      return;
-    }
     if (confirm('Tem certeza que deseja restaurar todas as atribuições?')) {
       initializeAssignments();
       setJustificativas({});
@@ -287,7 +202,6 @@ const SectorAssignment = () => {
   };
 
   const handleJustificativa = (personId, texto) => {
-    if (isHistoricalData) return;
     setJustificativas(prev => ({
       ...prev,
       [personId]: texto
@@ -295,10 +209,6 @@ const SectorAssignment = () => {
   };
 
   const handleSalvar = async () => {
-    if (isHistoricalData) {
-      alert('Não é possível salvar dados históricos. Use a data de hoje para fazer edições.');
-      return;
-    }
     setModalAberto(true);
   };
 
@@ -366,70 +276,46 @@ const SectorAssignment = () => {
     }
   };
 
-  const handleExport = async () => {
-    const workbook = new ExcelJS.Workbook();
+  const handleExport = () => {
+    let csv = 'Data,Operação,Setor,Nome,Cargo,Area\n';
     
-    // Adicionar sheet de Atribuições
-    const wsAtribuicoes = workbook.addWorksheet('Atribuições');
-    wsAtribuicoes.columns = [
-      { header: 'Data', key: 'Data', width: 12 },
-      { header: 'Operação', key: 'Operação', width: 15 },
-      { header: 'Setor', key: 'Setor', width: 15 },
-      { header: 'Nome', key: 'Nome', width: 20 },
-      { header: 'Cargo', key: 'Cargo', width: 15 },
-      { header: 'Área', key: 'Área', width: 15 }
-    ];
-    
-    // Adicionar dados de atribuições
     Object.keys(assignments).forEach(key => {
       if (key !== 'falta' && assignments[key]) {
         const setor = key.includes('||') ? key.split('||')[1] : key;
         assignments[key].forEach(person => {
-          wsAtribuicoes.addRow({
-            'Data': today,
-            'Operação': person.operacao,
-            'Setor': setor,
-            'Nome': person.name,
-            'Cargo': person.cargo,
-            'Área': person.area
-          });
+          const escapedName = `"${person.name.replace(/"/g, '""')}"`;
+          const escapedSetor = `"${setor.replace(/"/g, '""')}"`;
+          const escapedCargo = `"${person.cargo.replace(/"/g, '""')}"`;
+          const escapedArea = `"${person.area.replace(/"/g, '""')}"`;
+          const escapedOp = `"${person.operacao.replace(/"/g, '""')}"`;
+          csv += `${today},${escapedOp},${escapedSetor},${escapedName},${escapedCargo},${escapedArea}\n`;
         });
       }
     });
-    
-    // Adicionar sheet de Faltas
+
     if (assignments['falta'] && assignments['falta'].length > 0) {
-      const wsFaltas = workbook.addWorksheet('Faltas');
-      wsFaltas.columns = [
-        { header: 'Data', key: 'Data', width: 12 },
-        { header: 'Nome', key: 'Nome', width: 20 },
-        { header: 'Cargo', key: 'Cargo', width: 15 },
-        { header: 'Área', key: 'Área', width: 15 },
-        { header: 'Operação', key: 'Operação', width: 15 },
-        { header: 'Justificativa', key: 'Justificativa', width: 30 }
-      ];
-      
+      csv += '\n\nFALTAS\nData,Nome,Cargo,Area,Operação,Justificativa\n';
       assignments['falta'].forEach(person => {
         const justificativa = justificativas[person.id] || '';
-        wsFaltas.addRow({
-          'Data': today,
-          'Nome': person.name,
-          'Cargo': person.cargo,
-          'Área': person.area,
-          'Operação': person.operacao,
-          'Justificativa': justificativa
-        });
+        const escapedName = `"${person.name.replace(/"/g, '""')}"`;
+        const escapedCargo = `"${person.cargo.replace(/"/g, '""')}"`;
+        const escapedArea = `"${person.area.replace(/"/g, '""')}"`;
+        const escapedOp = `"${person.operacao.replace(/"/g, '""')}"`;
+        const escapedJustificativa = `"${justificativa.replace(/"/g, '""')}"`;
+        csv += `${today},${escapedName},${escapedCargo},${escapedArea},${escapedOp},${escapedJustificativa}\n`;
       });
     }
-    
-    // Gerar e baixar arquivo
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = URL.createObjectURL(blob);
+
+    const bom = '\uFEFF';
+    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
-    link.href = url;
-    link.download = `atribuicao_${today.replace(/\//g, '-')}.xlsx`;
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `atribuicao_${today.replace(/\//g, '-')}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
 
@@ -553,10 +439,10 @@ const SectorAssignment = () => {
 
           <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="font-bold text-slate-800 mb-4">Resumo Geral</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               <div className="text-center">
-                <div className="text-3xl font-bold text-blue-600">{initialPeople.filter(p => !isSuporte(p)).length}</div>
-                <div className="text-sm text-slate-600 mt-1">Total (Com Suporte)</div>
+                <div className="text-3xl font-bold text-blue-600">{initialPeople.filter(p => !isSuporte(p) && !p.em_recrutamento).length}</div>
+                <div className="text-sm text-slate-600 mt-1">Total</div>
               </div>
               <div className="text-center">
                 <div className="text-3xl font-bold text-green-600">{totalAtribuido}</div>
@@ -567,14 +453,22 @@ const SectorAssignment = () => {
                 <div className="text-sm text-slate-600 mt-1">Faltas</div>
               </div>
               <div className="text-center">
-                <div className="text-3xl font-bold text-purple-600">
+                <div className="text-3xl font-bold text-orange-500">{initialPeople.filter(p => p.de_ferias && !isSuporte(p)).length}</div>
+                <div className="text-sm text-slate-600 mt-1">Férias</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-purple-600">{initialPeople.filter(p => p.em_recrutamento && !isSuporte(p)).length}</div>
+                <div className="text-sm text-slate-600 mt-1">Em Recrutamento</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-rose-600">
                   {(() => {
-                    const totalSemSuporte = initialPeople.filter(p => !isSuporte(p)).length;
+                    const totalSemSuporte = initialPeople.filter(p => !isSuporte(p) && !p.em_recrutamento).length;
                     const faltasSemSuporte = assignments['falta']?.filter(p => !isSuporte(p)).length || 0;
                     return totalSemSuporte > 0 ? ((faltasSemSuporte / totalSemSuporte) * 100).toFixed(1) : '0.0';
                   })()}%
                 </div>
-                <div className="text-sm text-slate-600 mt-1">Absenteismo Geral</div>
+                <div className="text-sm text-slate-600 mt-1">Absenteísmo</div>
               </div>
             </div>
           </div>
@@ -592,33 +486,15 @@ const SectorAssignment = () => {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <Calendar className="w-8 h-8 text-blue-600" />
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-slate-800">Atribuição Diária</h1>
-              {isHistoricalData && (
-                <div className="mt-1 text-sm font-semibold text-amber-600 flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4" />
-                  Visualizando dados históricos - modo somente leitura
-                </div>
-              )}
-            </div>
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-800">Atribuição Diária</h1>
           </div>
-          <div className="flex items-center gap-3 flex-col">
-            <div className="flex items-center gap-3">
-              <input
-                type="date"
-                value={today}
-                onChange={(e) => setToday(e.target.value)}
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              {isHistoricalData && (
-                <button
-                  onClick={() => setToday(new Date().toISOString().split('T')[0])}
-                  className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition"
-                >
-                  ← Hoje
-                </button>
-              )}
-            </div>
+          <div className="flex items-center gap-3">
+            <input
+              type="date"
+              value={today}
+              onChange={(e) => setToday(e.target.value)}
+              className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+            />
           </div>
         </div>
 
@@ -637,12 +513,7 @@ const SectorAssignment = () => {
             <div className="flex gap-2 flex-wrap">
               <button
                 onClick={handleSalvar}
-                disabled={isHistoricalData}
-                className={`flex items-center gap-2 px-3 py-2 text-white text-sm rounded-lg transition ${
-                  isHistoricalData
-                    ? 'bg-gray-400 cursor-not-allowed opacity-60'
-                    : 'bg-green-600 hover:bg-green-700'
-                }`}
+                className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition"
               >
                 <Download className="w-4 h-4" />
                 Salvar
@@ -656,12 +527,7 @@ const SectorAssignment = () => {
               </button>
               <button
                 onClick={handleReset}
-                disabled={isHistoricalData}
-                className={`flex items-center gap-2 px-3 py-2 text-white text-sm rounded-lg transition ${
-                  isHistoricalData
-                    ? 'bg-gray-400 cursor-not-allowed opacity-60'
-                    : 'bg-slate-500 hover:bg-slate-600'
-                }`}
+                className="flex items-center gap-2 px-3 py-2 bg-slate-500 text-white text-sm rounded-lg hover:bg-slate-600 transition"
               >
                 <RotateCcw className="w-4 h-4" />
                 Restaurar
@@ -671,7 +537,7 @@ const SectorAssignment = () => {
                 className="flex items-center gap-2 px-3 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 transition"
               >
                 <Download className="w-4 h-4" />
-                Exportar XLSX
+                Exportar CSV
               </button>
             </div>
           </div>
@@ -755,13 +621,11 @@ const SectorAssignment = () => {
                         return (
                           <div
                             key={setor}
-                            onDragOver={!isHistoricalData ? (e) => handleDragOver(e, makeKey(operacao, setor)) : undefined}
-                            onDragLeave={!isHistoricalData ? handleDragLeave : undefined}
-                            onDrop={!isHistoricalData ? () => handleDrop(makeKey(operacao, setor)) : undefined}
+                            onDragOver={(e) => handleDragOver(e, makeKey(operacao, setor))}
+                            onDragLeave={handleDragLeave}
+                            onDrop={() => handleDrop(makeKey(operacao, setor))}
                             className={`rounded-lg border-2 border-dashed p-3 min-h-64 transition-colors ${
-                              isHistoricalData
-                                ? 'bg-slate-100 border-slate-300 opacity-75'
-                                : dragOver === makeKey(operacao, setor)
+                              dragOver === makeKey(operacao, setor)
                                 ? 'bg-blue-100 border-blue-500 shadow-inner'
                                 : 'bg-blue-50 border-blue-200'
                             }`}
@@ -778,20 +642,10 @@ const SectorAssignment = () => {
                                 return (
                                   <div
                                     key={person.id}
-                                    draggable={!isHistoricalData}
+                                    draggable
                                     onDragStart={() => handleDragStart(person, makeKey(operacao, setor))}
-                                    title={
-                                      isHistoricalData
-                                        ? `${person.name} (modo histórico - visualização apenas)`
-                                        : visitante
-                                        ? `${person.name} — veio de: ${initialPeople.find(p=>p.id===person.id)?.setor}`
-                                        : person.name
-                                    }
-                                    className={`p-2 rounded transition-all text-xs ${
-                                      isHistoricalData
-                                        ? 'cursor-default opacity-75'
-                                        : 'cursor-grab active:cursor-grabbing hover:shadow-md active:opacity-50 active:scale-95'
-                                    } ${
+                                    title={visitante ? `${person.name} — veio de: ${initialPeople.find(p=>p.id===person.id)?.setor}` : person.name}
+                                    className={`p-2 rounded cursor-grab active:cursor-grabbing hover:shadow-md active:opacity-50 active:scale-95 transition-all text-xs ${
                                       visitante
                                         ? 'bg-amber-50 border-l-4 border-amber-400 border border-amber-200'
                                         : 'bg-white border-l-4 border-blue-500'
@@ -825,7 +679,7 @@ const SectorAssignment = () => {
                                     key={`vaga-${vaga.id}`}
                                     className="bg-purple-50 p-2 rounded border-2 border-dashed border-purple-400 text-xs"
                                   >
-                                    <div className="font-semibold text-purple-700 line-clamp-2">🔍 Em Recrutamento</div>
+                                    <div className="font-semibold text-purple-700 line-clamp-2">Em Recrutamento</div>
                                     <div className="text-purple-600 text-xs mt-0.5 line-clamp-1">{vaga.cargo}</div>
                                     {vaga.nome_anterior && <div className="text-purple-500 text-xs mt-0.5">Ant: {vaga.nome_anterior}</div>}
                                   </div>
@@ -888,7 +742,7 @@ const SectorAssignment = () => {
                                     key={`vaga-${vaga.id}`}
                                     className="bg-purple-50 p-2 rounded border-2 border-dashed border-purple-400 text-xs"
                                   >
-                                    <div className="font-semibold text-purple-700 line-clamp-2">🔍 Em Recrutamento</div>
+                                    <div className="font-semibold text-purple-700 line-clamp-2">Em Recrutamento</div>
                                     <div className="text-purple-600 text-xs mt-0.5 line-clamp-1">{vaga.cargo}</div>
                                     {vaga.nome_anterior && <div className="text-purple-500 text-xs mt-0.5">Ant: {vaga.nome_anterior}</div>}
                                   </div>
@@ -917,30 +771,22 @@ const SectorAssignment = () => {
                 </span>
               </div>
               <div
-                onDragOver={!isHistoricalData ? (e) => handleDragOver(e, 'falta') : undefined}
-                onDragLeave={!isHistoricalData ? handleDragLeave : undefined}
-                onDrop={!isHistoricalData ? () => handleDrop('falta') : undefined}
+                onDragOver={(e) => handleDragOver(e, 'falta')}
+                onDragLeave={handleDragLeave}
+                onDrop={() => handleDrop('falta')}
                 className={`p-2 min-h-24 space-y-1 transition-colors rounded-b-lg ${
-                  isHistoricalData
-                    ? 'bg-gray-100'
-                    : dragOver === 'falta'
-                    ? 'bg-red-100'
-                    : ''
+                  dragOver === 'falta' ? 'bg-red-100' : ''
                 }`}
               >
                 {(filteredPeople(assignments['falta'])?.length === 0) && (
-                  <p className="text-xs text-red-300 italic text-center mt-4">{isHistoricalData ? 'Sem faltas' : 'Arraste aqui'}</p>
+                  <p className="text-xs text-red-300 italic text-center mt-4">Arraste aqui</p>
                 )}
                 {filteredPeople(assignments['falta'])?.map(person => (
                   <div
                     key={person.id}
-                    draggable={!isHistoricalData}
+                    draggable
                     onDragStart={() => handleDragStart(person, 'falta')}
-                    className={`bg-white border-l-4 border-red-500 p-2 rounded transition-all text-xs ${
-                      isHistoricalData
-                        ? 'cursor-default opacity-75'
-                        : 'cursor-grab active:cursor-grabbing active:opacity-50 active:scale-95 hover:shadow-md'
-                    }`}
+                    className="bg-white border-l-4 border-red-500 p-2 rounded cursor-grab active:cursor-grabbing active:opacity-50 active:scale-95 hover:shadow-md transition-all text-xs"
                   >
                     <div className="font-semibold text-red-900 line-clamp-2">{person.name}</div>
                     <div className="text-red-600 text-xs mt-0.5 line-clamp-1">{person.cargo}</div>
@@ -953,7 +799,7 @@ const SectorAssignment = () => {
             {/* FÉRIAS */}
             <div className="bg-orange-50 rounded-lg shadow-md border-2 border-orange-200 overflow-hidden">
               <div className="bg-orange-400 px-3 py-2 flex items-center justify-between">
-                <span className="font-bold text-white text-sm">🏖️ FÉRIAS</span>
+                <span className="font-bold text-white text-sm">FÉRIAS</span>
                 <span className="bg-orange-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
                   {pessoasEmFerias.length}
                 </span>
@@ -978,7 +824,7 @@ const SectorAssignment = () => {
             {/* EM RECRUTAMENTO */}
             <div className="bg-purple-50 rounded-lg shadow-md border-2 border-purple-200 overflow-hidden">
               <div className="bg-purple-500 px-3 py-2 flex items-center justify-between">
-                <span className="font-bold text-white text-sm">🔍 RECRUTAMENTO</span>
+                <span className="font-bold text-white text-sm">RECRUTAMENTO</span>
                 <span className="bg-purple-700 text-white text-xs font-bold px-2 py-0.5 rounded-full">
                   {vagas.length}
                 </span>
