@@ -6,6 +6,117 @@ const supabaseUrl = 'https://fgolrboqzvqqhyklsxsm.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnb2xyYm9xenZxcWh5a2xzeHNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0OTI3MzUsImV4cCI6MjA4NDA2ODczNX0.rFmuEoiJoPnnbCBQ308FAfj1eBQo9Kc0iJSyFPX-xj0';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// ── Responsabilidade única: buscar próximo ID disponível ──
+const getNextId = async () => {
+  const { data, error } = await supabase
+    .from('pessoas')
+    .select('id')
+    .order('id', { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  return data && data.length > 0 ? data[0].id + 1 : 1;
+};
+
+// ── Responsabilidade única: operações CRUD no banco ──
+const pessoasService = {
+  fetchAll: async () => {
+    const { data, error } = await supabase
+      .from('pessoas')
+      .select('*')
+      .order('name', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  insert: async (formData) => {
+    const nextId = await getNextId();
+    const novoFuncionario = {
+      id: nextId,
+      name: formData.name,
+      cargo: formData.cargo,
+      area: formData.area || '',
+      setor: formData.setor,
+      operacao: formData.operacao,
+      de_ferias: formData.de_ferias || false,
+      em_recrutamento: false,
+    };
+    const { data, error } = await supabase
+      .from('pessoas')
+      .insert([novoFuncionario])
+      .select();
+    if (error) throw error;
+    return data;
+  },
+
+  update: async (id, formData) => {
+    const { error } = await supabase
+      .from('pessoas')
+      .update(formData)
+      .eq('id', id);
+    if (error) throw error;
+  },
+
+  deleteById: async (id) => {
+    const { error } = await supabase
+      .from('pessoas')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+  },
+
+  demitir: async (id, nome) => {
+    const { error } = await supabase
+      .from('pessoas')
+      .update({
+        nome_anterior: nome,
+        name: 'VAGA EM RECRUTAMENTO',
+        de_ferias: false,
+        em_recrutamento: true,
+      })
+      .eq('id', id);
+    if (error) throw error;
+  },
+
+  removerVagasPorNome: async (nome) => {
+    const { data } = await supabase
+      .from('pessoas')
+      .select('id')
+      .eq('em_recrutamento', true)
+      .eq('nome_anterior', nome);
+    if (data && data.length > 0) {
+      for (const vaga of data) {
+        await supabase.from('pessoas').delete().eq('id', vaga.id);
+      }
+    }
+    return data?.length || 0;
+  },
+
+  removerVagaPorSetorOperacao: async (setor, operacao) => {
+    const { data } = await supabase
+      .from('pessoas')
+      .select('id')
+      .eq('em_recrutamento', true)
+      .eq('setor', setor)
+      .eq('operacao', operacao)
+      .limit(1);
+    if (data && data.length > 0) {
+      await supabase.from('pessoas').delete().eq('id', data[0].id);
+    }
+    return data?.length || 0;
+  },
+};
+
+// ── Responsabilidade única: estado inicial do form ──
+const formInicial = {
+  name: '',
+  cargo: '',
+  area: '',
+  setor: '',
+  operacao: '',
+  de_ferias: false,
+  em_recrutamento: false,
+};
+
 const CadastroFuncionarios = () => {
   const [funcionarios, setFuncionarios] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -16,20 +127,11 @@ const CadastroFuncionarios = () => {
   const [modalAberto, setModalAberto] = useState(false);
   const [editando, setEditando] = useState(false);
   const [funcionarioSelecionado, setFuncionarioSelecionado] = useState(null);
-
-  const [formData, setFormData] = useState({
-    name: '',
-    cargo: '',
-    area: '',
-    setor: '',
-    operacao: '',
-    de_ferias: false,
-    em_recrutamento: false,
-  });
+  const [formData, setFormData] = useState(formInicial);
   const [modoRecrutamento, setModoRecrutamento] = useState(false);
-  const [setorCustom, setSetorCustom] = useState(false); // modo digitar setor novo
+  const [setorCustom, setSetorCustom] = useState(false);
 
-  // Listas de seleção derivadas dos dados do banco
+  // ── Opções derivadas do banco ──
   const opcoesOperacao = [...new Set(funcionarios.map(f => f.operacao).filter(Boolean))].sort();
   const opcoesCargo = [...new Set(funcionarios.map(f => f.cargo).filter(Boolean))].sort();
   const opcoesSetor = [...new Set(
@@ -46,44 +148,31 @@ const CadastroFuncionarios = () => {
   )].sort();
 
   useEffect(() => {
-    fetchFuncionarios();
+    carregarFuncionarios();
 
-    // Real-time subscription para atualizações da tabela pessoas
     const subscription = supabase
       .channel('pessoas_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'pessoas'
-        },
-        () => {
-          fetchFuncionarios();
-        }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pessoas' }, carregarFuncionarios)
       .subscribe();
 
-    return () => {
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
-  const fetchFuncionarios = async () => {
+  const carregarFuncionarios = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('pessoas')
-        .select('*')
-        .order('name', { ascending: true });
-
-      if (error) throw error;
-      setFuncionarios(data || []);
+      const data = await pessoasService.fetchAll();
+      setFuncionarios(data);
     } catch (err) {
       setError('Erro ao carregar funcionários: ' + err.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const exibirSucesso = (msg) => {
+    setSuccess(msg);
+    setTimeout(() => setSuccess(''), 3000);
   };
 
   const handleSubmit = async (e) => {
@@ -100,81 +189,21 @@ const CadastroFuncionarios = () => {
       setLoading(true);
 
       if (editando && funcionarioSelecionado) {
-        // Atualizar funcionário existente
-        const { error } = await supabase
-          .from('pessoas')
-          .update(formData)
-          .eq('id', funcionarioSelecionado.id);
-
-        if (error) throw error;
-        setSuccess('Funcionário atualizado com sucesso!');
+        await pessoasService.update(funcionarioSelecionado.id, formData);
+        exibirSucesso('Funcionário atualizado com sucesso!');
       } else {
-        // Criar novo funcionário - UUID gerado no front
-        const novoFuncionario = {
-          id: "70",
-          name: formData.name,
-          cargo: formData.cargo,
-          area: formData.area || '',
-          setor: formData.setor,
-          operacao: formData.operacao,
-          de_ferias: formData.de_ferias || false,
-          em_recrutamento: false,
-        };
+        await pessoasService.insert(formData);
 
-        console.log('Enviando novo funcionário:', novoFuncionario);
+        // Remover vagas correspondentes
+        const removidosPorNome = await pessoasService.removerVagasPorNome(formData.name);
+        const removidosPorSetor = await pessoasService.removerVagaPorSetorOperacao(formData.setor, formData.operacao);
+        const vagasRemovidas = removidosPorNome + removidosPorSetor;
 
-        const { data, error } = await supabase
-          .from('pessoas')
-          .insert([novoFuncionario])
-          .select();
-
-        if (error) {
-          console.error('Erro Supabase:', error);
-          throw error;
-        }
-
-        console.log('Funcionário criado com sucesso:', data);
-
-        // Deletar qualquer vaga em recrutamento deste colaborador (por nome_anterior)
-        const { data: vagasAntigas } = await supabase
-          .from('pessoas')
-          .select('id')
-          .eq('em_recrutamento', true)
-          .eq('nome_anterior', formData.name);
-
-        if (vagasAntigas && vagasAntigas.length > 0) {
-          for (const vaga of vagasAntigas) {
-            await supabase
-              .from('pessoas')
-              .delete()
-              .eq('id', vaga.id);
-          }
-        }
-
-        // Também deletar vagas no mesmo setor/operação (fallback)
-        const { data: vagasSetor } = await supabase
-          .from('pessoas')
-          .select('id')
-          .eq('em_recrutamento', true)
-          .eq('setor', formData.setor)
-          .eq('operacao', formData.operacao)
-          .limit(1);
-
-        if (vagasSetor && vagasSetor.length > 0) {
-          await supabase
-            .from('pessoas')
-            .delete()
-            .eq('id', vagasSetor[0].id);
-        }
-
-        setSuccess('Funcionário cadastrado com sucesso!' + ((vagasAntigas?.length > 0 || vagasSetor?.length > 0) ? ' Vaga(s) em recrutamento removida(s).' : ''));
+        exibirSucesso('Funcionário cadastrado com sucesso!' + (vagasRemovidas > 0 ? ' Vaga(s) removida(s).' : ''));
       }
 
-      fetchFuncionarios();
+      await carregarFuncionarios();
       handleCloseModal();
-      
-      // Limpar mensagem após 3 segundos
-      setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       setError('Erro ao salvar: ' + err.message);
     } finally {
@@ -185,46 +214,23 @@ const CadastroFuncionarios = () => {
   const handleDelete = async (id, nome) => {
     const isVaga = nome === 'VAGA EM RECRUTAMENTO';
     const mensagem = isVaga
-      ? `Tem certeza que deseja excluir esta vaga em recrutamento?`
+      ? 'Tem certeza que deseja excluir esta vaga em recrutamento?'
       : `Tem certeza que deseja demitir "${nome}"?\n\nO registro vira uma vaga em recrutamento automaticamente.`;
 
-    if (!confirm(mensagem)) {
-      return;
-    }
+    if (!confirm(mensagem)) return;
 
     try {
       setLoading(true);
-
       if (isVaga) {
-        // Deletar vaga em recrutamento
-        const { error } = await supabase
-          .from('pessoas')
-          .delete()
-          .eq('id', id);
-
-        if (error) throw error;
-        setSuccess('Vaga em recrutamento removida!');
+        await pessoasService.deleteById(id);
+        exibirSucesso('Vaga em recrutamento removida!');
       } else {
-        // Em vez de deletar, transforma em vaga em recrutamento
-        const { error } = await supabase
-          .from('pessoas')
-          .update({
-            nome_anterior: nome,
-            name: 'VAGA EM RECRUTAMENTO',
-            de_ferias: false,
-            em_recrutamento: true,
-          })
-          .eq('id', id);
-
-        if (error) throw error;
-        setSuccess('Funcionário demitido e vaga aberta em recrutamento!');
+        await pessoasService.demitir(id, nome);
+        exibirSucesso('Funcionário demitido e vaga aberta em recrutamento!');
       }
-
-      fetchFuncionarios();
-      setTimeout(() => setSuccess(''), 3000);
+      await carregarFuncionarios();
     } catch (err) {
       setError('Erro ao deletar: ' + err.message);
-      console.error('Erro detalhado:', err);
     } finally {
       setLoading(false);
     }
@@ -248,15 +254,7 @@ const CadastroFuncionarios = () => {
   const handleNovo = () => {
     setFuncionarioSelecionado(null);
     setModoRecrutamento(false);
-    setFormData({
-      name: '',
-      cargo: '',
-      area: '',
-      setor: '',
-      operacao: '',
-      de_ferias: false,
-      em_recrutamento: false,
-    });
+    setFormData(formInicial);
     setEditando(false);
     setModalAberto(true);
   };
@@ -264,15 +262,7 @@ const CadastroFuncionarios = () => {
   const handleNovaVaga = () => {
     setFuncionarioSelecionado(null);
     setModoRecrutamento(true);
-    setFormData({
-      name: 'VAGA EM RECRUTAMENTO',
-      cargo: '',
-      area: '',
-      setor: '',
-      operacao: '',
-      de_ferias: false,
-      em_recrutamento: true,
-    });
+    setFormData({ ...formInicial, name: 'VAGA EM RECRUTAMENTO', em_recrutamento: true });
     setEditando(false);
     setModalAberto(true);
   };
@@ -282,28 +272,18 @@ const CadastroFuncionarios = () => {
     setFuncionarioSelecionado(null);
     setEditando(false);
     setModoRecrutamento(false);
-    setFormData({
-      name: '',
-      cargo: '',
-      area: '',
-      setor: '',
-      operacao: '',
-      de_ferias: false,
-      em_recrutamento: false,
-    });
+    setSetorCustom(false);
+    setFormData(formInicial);
   };
 
   const filteredFuncionarios = funcionarios.filter(f => {
-    const matchesSearch = f.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch =
+      f.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       f.cargo.toLowerCase().includes(searchTerm.toLowerCase()) ||
       f.operacao.toLowerCase().includes(searchTerm.toLowerCase()) ||
       f.setor.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (f.area && f.area.toLowerCase().includes(searchTerm.toLowerCase()));
-
-    if (mostrarVagas) {
-      return f.em_recrutamento && matchesSearch;
-    }
-    return !f.em_recrutamento && matchesSearch;
+    return mostrarVagas ? f.em_recrutamento && matchesSearch : !f.em_recrutamento && matchesSearch;
   });
 
   if (loading && funcionarios.length === 0) {
@@ -328,17 +308,11 @@ const CadastroFuncionarios = () => {
           <h2 className="text-2xl font-bold text-slate-800">Gestão de Funcionários</h2>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={handleNovaVaga}
-            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
-          >
+          <button onClick={handleNovaVaga} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
             <Plus className="w-5 h-5" />
             Vaga em Recrutamento
           </button>
-          <button
-            onClick={handleNovo}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-          >
+          <button onClick={handleNovo} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
             <Plus className="w-5 h-5" />
             Novo Funcionário
           </button>
@@ -350,9 +324,7 @@ const CadastroFuncionarios = () => {
         <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
           <p className="text-red-700 flex-1">{error}</p>
-          <button onClick={() => setError('')}>
-            <X className="w-5 h-5 text-red-600" />
-          </button>
+          <button onClick={() => setError('')}><X className="w-5 h-5 text-red-600" /></button>
         </div>
       )}
 
@@ -360,9 +332,7 @@ const CadastroFuncionarios = () => {
         <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
           <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
           <p className="text-green-700 flex-1">{success}</p>
-          <button onClick={() => setSuccess('')}>
-            <X className="w-5 h-5 text-green-600" />
-          </button>
+          <button onClick={() => setSuccess('')}><X className="w-5 h-5 text-green-600" /></button>
         </div>
       )}
 
@@ -382,9 +352,7 @@ const CadastroFuncionarios = () => {
           <button
             onClick={() => setMostrarVagas(!mostrarVagas)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition ${
-              mostrarVagas
-                ? 'bg-purple-600 text-white hover:bg-purple-700'
-                : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+              mostrarVagas ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
             }`}
           >
             <Filter className="w-4 h-4" />
@@ -420,9 +388,8 @@ const CadastroFuncionarios = () => {
                   <tr key={funcionario.id} className="hover:bg-slate-50 transition">
                     <td className="px-4 py-3 text-sm font-medium text-slate-800">
                       {funcionario.em_recrutamento
-                        ? <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded-full">🔍 Vaga em Recrutamento</span>
-                        : funcionario.name
-                      }
+                        ? <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded-full">Vaga em Recrutamento</span>
+                        : funcionario.name}
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-600">{funcionario.cargo}</td>
                     <td className="px-4 py-3 text-sm text-slate-600">{funcionario.area || '-'}</td>
@@ -430,29 +397,17 @@ const CadastroFuncionarios = () => {
                     <td className="px-4 py-3 text-sm text-slate-600">{funcionario.operacao}</td>
                     <td className="px-4 py-3 text-center">
                       {funcionario.de_ferias ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-700 text-xs font-semibold rounded-full">
-                          🏖️ Férias
-                        </span>
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-700 text-xs font-semibold rounded-full">Férias</span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">
-                          ✓ Ativo
-                        </span>
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">Ativo</span>
                       )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => handleEdit(funcionario)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded transition"
-                          title="Editar"
-                        >
+                        <button onClick={() => handleEdit(funcionario)} className="p-2 text-blue-600 hover:bg-blue-50 rounded transition" title="Editar">
                           <Edit2 className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={() => handleDelete(funcionario.id, funcionario.name)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded transition"
-                          title="Excluir"
-                        >
+                        <button onClick={() => handleDelete(funcionario.id, funcionario.name)} className="p-2 text-red-600 hover:bg-red-50 rounded transition" title="Excluir">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -471,13 +426,13 @@ const CadastroFuncionarios = () => {
         {searchTerm && ` (filtrado de ${funcionarios.filter(f => mostrarVagas ? f.em_recrutamento : !f.em_recrutamento).length})`}
       </div>
 
-      {/* Modal Cadastro/Edição */}
+      {/* Modal */}
       {modalAberto && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 p-6 flex items-center justify-between">
               <h2 className="text-2xl font-bold text-white">
-{modoRecrutamento ? 'Nova Vaga em Recrutamento' : editando ? 'Editar Funcionário' : 'Novo Funcionário'}
+                {modoRecrutamento ? 'Nova Vaga em Recrutamento' : editando ? 'Editar Funcionário' : 'Novo Funcionário'}
               </h2>
               <button onClick={handleCloseModal} className="text-white hover:bg-blue-800 p-1 rounded transition">
                 <X className="w-6 h-6" />
@@ -486,24 +441,23 @@ const CadastroFuncionarios = () => {
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {!modoRecrutamento && <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">
-                    Nome Completo *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Ex: João Silva"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>}
+
+                {!modoRecrutamento && (
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Nome Completo *</label>
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      placeholder="Ex: João Silva"
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                )}
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">
-                    Cargo *
-                  </label>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Cargo *</label>
                   <select
                     value={formData.cargo}
                     onChange={(e) => setFormData({ ...formData, cargo: e.target.value })}
@@ -516,9 +470,7 @@ const CadastroFuncionarios = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">
-                    Área
-                  </label>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Área</label>
                   <select
                     value={formData.area}
                     onChange={(e) => setFormData({ ...formData, area: e.target.value })}
@@ -530,9 +482,7 @@ const CadastroFuncionarios = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">
-                    Setor *
-                  </label>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Setor *</label>
                   {!setorCustom ? (
                     <div className="flex gap-2">
                       <select
@@ -548,7 +498,6 @@ const CadastroFuncionarios = () => {
                         type="button"
                         onClick={() => { setSetorCustom(true); setFormData(f => ({ ...f, setor: '' })); }}
                         className="px-3 py-2 bg-blue-50 border border-blue-300 text-blue-600 rounded-lg hover:bg-blue-100 transition text-sm font-medium whitespace-nowrap"
-                        title="Digitar novo setor"
                       >
                         + Novo
                       </button>
@@ -568,7 +517,6 @@ const CadastroFuncionarios = () => {
                         type="button"
                         onClick={() => { setSetorCustom(false); setFormData(f => ({ ...f, setor: '' })); }}
                         className="px-3 py-2 bg-slate-100 border border-slate-300 text-slate-600 rounded-lg hover:bg-slate-200 transition text-sm font-medium"
-                        title="Voltar para a lista"
                       >
                         ← Lista
                       </button>
@@ -577,9 +525,7 @@ const CadastroFuncionarios = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">
-                    Operação *
-                  </label>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Operação *</label>
                   <select
                     value={formData.operacao}
                     onChange={(e) => { setFormData({ ...formData, operacao: e.target.value, setor: '', area: '' }); setSetorCustom(false); }}
@@ -592,42 +538,32 @@ const CadastroFuncionarios = () => {
                 </div>
 
                 {!modoRecrutamento && (
-                <div className="md:col-span-2 bg-orange-50 p-4 rounded-lg border border-orange-200">
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.de_ferias}
-                      onChange={(e) => setFormData({ ...formData, de_ferias: e.target.checked })}
-                      className="w-5 h-5 text-orange-600 border-orange-300 rounded focus:ring-2 focus:ring-orange-500"
-                    />
-                    <div className="flex-1">
-                      <span className="text-sm font-semibold text-slate-800">🏖️ Funcionário está de férias</span>
-                      <p className="text-xs text-slate-600 mt-1">Quando marcado, o funcionário não aparecerá na atribuição diária</p>
-                    </div>
-                  </label>
-                </div>
+                  <div className="md:col-span-2 bg-orange-50 p-4 rounded-lg border border-orange-200">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.de_ferias}
+                        onChange={(e) => setFormData({ ...formData, de_ferias: e.target.checked })}
+                        className="w-5 h-5 text-orange-600 border-orange-300 rounded focus:ring-2 focus:ring-orange-500"
+                      />
+                      <div className="flex-1">
+                        <span className="text-sm font-semibold text-slate-800">Funcionário está de férias</span>
+                        <p className="text-xs text-slate-600 mt-1">Quando marcado, o funcionário não aparecerá na atribuição diária</p>
+                      </div>
+                    </label>
+                  </div>
                 )}
               </div>
 
               <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-                <p className="text-sm text-blue-800">
-                  <span className="font-semibold">ℹ️ Dica:</span> Campos marcados com * são obrigatórios.
-                </p>
+                <p className="text-sm text-blue-800"><span className="font-semibold">Dica:</span> Campos marcados com * são obrigatórios.</p>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={handleCloseModal}
-                  className="px-6 py-2 bg-slate-300 text-slate-800 rounded-lg font-semibold hover:bg-slate-400 transition"
-                >
+                <button type="button" onClick={handleCloseModal} className="px-6 py-2 bg-slate-300 text-slate-800 rounded-lg font-semibold hover:bg-slate-400 transition">
                   Cancelar
                 </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-2"
-                >
+                <button type="submit" disabled={loading} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-2">
                   {loading && <Loader className="w-4 h-4 animate-spin" />}
                   {editando ? 'Atualizar' : 'Cadastrar'}
                 </button>
