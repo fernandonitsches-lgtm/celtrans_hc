@@ -111,6 +111,7 @@ const CadastroFuncionarios = () => {
       } else {
         // Criar novo funcionário - UUID gerado no front
         const novoFuncionario = {
+          id: "70",
           name: formData.name,
           cargo: formData.cargo,
           area: formData.area || '',
