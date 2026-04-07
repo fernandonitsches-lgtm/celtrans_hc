@@ -38,7 +38,7 @@ const pessoasService = {
       setor: formData.setor,
       operacao: formData.operacao,
       de_ferias: formData.de_ferias || false,
-      em_recrutamento: false,
+      em_recrutamento: formData.em_recrutamento || false,
     };
     const { data, error } = await supabase
       .from('pessoas')
