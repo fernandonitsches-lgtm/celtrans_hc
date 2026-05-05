@@ -1,3 +1,4 @@
+import { supabase } from '../lib/supabase';
 import React, { useState } from 'react';
 import { X, AlertCircle, CheckCircle } from 'lucide-react';
 

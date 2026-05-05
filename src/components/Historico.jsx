@@ -1,11 +1,7 @@
+import { supabase } from '../lib/supabase';
 import React, { useState, useEffect } from 'react';
 import { History, Search, Download, ChevronDown, AlertCircle } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
 import ExcelJS from 'exceljs';
-
-const supabaseUrl = 'https://fgolrboqzvqqhyklsxsm.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnb2xyYm9xenZxcWh5a2xzeHNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0OTI3MzUsImV4cCI6MjA4NDA2ODczNX0.rFmuEoiJoPnnbCBQ308FAfj1eBQo9Kc0iJSyFPX-xj0';
-const supabase = createClient(supabaseUrl, supabaseKey);
 
 const Historico = () => {
   const [atribuicoes, setAtribuicoes] = useState([]);

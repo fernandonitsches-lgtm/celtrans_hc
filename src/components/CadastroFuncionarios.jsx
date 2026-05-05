@@ -1,10 +1,6 @@
+import { supabase } from '../lib/supabase';
 import React, { useState, useEffect } from 'react';
 import { Users, Plus, Edit2, Trash2, AlertCircle, CheckCircle, Loader, Search, X, Filter } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = 'https://fgolrboqzvqqhyklsxsm.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnb2xyYm9xenZxcWh5a2xzeHNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0OTI3MzUsImV4cCI6MjA4NDA2ODczNX0.rFmuEoiJoPnnbCBQ308FAfj1eBQo9Kc0iJSyFPX-xj0';
-const supabase = createClient(supabaseUrl, supabaseKey);
 
 // ── S: Single Responsibility — buscar próximo ID ──
 const getNextId = async () => {
@@ -145,31 +141,53 @@ const CadastroFuncionarios = () => {
   const [formData, setFormData]                   = useState(formInicial);
   const [modoRecrutamento, setModoRecrutamento]   = useState(false);
   const [setorCustom, setSetorCustom]             = useState(false);
+  const [confirmarDelete, setConfirmarDelete] = useState(null); // { id, nome }
 
   const opcoes = derivarOpcoes(funcionarios, formData.operacao);
   const filteredFuncionarios = filtrarFuncionarios(funcionarios, searchTerm, mostrarVagas);
 
-  useEffect(() => {
-    carregarFuncionarios();
-    const subscription = supabase
-      .channel('pessoas_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pessoas' }, carregarFuncionarios)
-      .subscribe();
-    return () => subscription.unsubscribe();
-  }, []);
+useEffect(() => {
+  let mounted = true;
 
-  // ── S: Single Responsibility — carregar dados ──
-  const carregarFuncionarios = async () => {
+  const carregar = async () => {
     try {
       setLoading(true);
       const data = await pessoasService.fetchAll();
-      setFuncionarios(data);
+      if (mounted) setFuncionarios(data);
     } catch (err) {
-      setError(err.message);
+      if (mounted) setError(err.message);
     } finally {
-      setLoading(false);
+      if (mounted) setLoading(false);
     }
   };
+
+  carregar();
+
+  const subscription = supabase
+    .channel('pessoas_changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'pessoas' }, () => {
+      if (mounted) carregar();
+    })
+    .subscribe();
+
+  return () => {
+    mounted = false;
+    subscription.unsubscribe();
+  };
+}, []);
+
+// Fora do useEffect — para handleSubmit e handleDelete continuarem funcionando
+const carregarFuncionarios = async () => {
+  try {
+    setLoading(true);
+    const data = await pessoasService.fetchAll();
+    setFuncionarios(data);
+  } catch (err) {
+    setError(err.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // ── S: Single Responsibility — exibir mensagem de sucesso ──
   const exibirSucesso = (msg) => {
@@ -230,30 +248,31 @@ const CadastroFuncionarios = () => {
     }
   };
 
-  // ── S: Single Responsibility — deletar ou demitir ──
-  const handleDelete = async (id, nome) => {
-    const isVaga = nome === 'VAGA EM RECRUTAMENTO';
-    const msg = isVaga
-      ? 'Tem certeza que deseja excluir esta vaga?'
-      : `Tem certeza que deseja demitir "${nome}"?\n\nO registro vira uma vaga em recrutamento automaticamente.`;
-    if (!confirm(msg)) return;
+const handleDelete = (id, nome) => {
+  setConfirmarDelete({ id, nome });
+};
 
-    try {
-      setLoading(true);
-      if (isVaga) {
-        await pessoasService.deleteById(id);
-        exibirSucesso('Vaga removida!');
-      } else {
-        await pessoasService.demitir(id, nome);
-        exibirSucesso('Funcionário demitido e vaga aberta!');
-      }
-      await carregarFuncionarios();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+const handleConfirmarDelete = async () => {
+  const { id, nome } = confirmarDelete;
+  setConfirmarDelete(null);
+  const isVaga = nome === 'VAGA EM RECRUTAMENTO';
+  try {
+    setLoading(true);
+    if (isVaga) {
+      await pessoasService.deleteById(id);
+      exibirSucesso('Vaga removida!');
+    } else {
+      await pessoasService.demitir(id, nome);
+      exibirSucesso('Funcionário demitido e vaga aberta!');
     }
-  };
+    await carregarFuncionarios();
+  } catch (err) {
+    setError(err.message);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const handleEdit = (funcionario) => {
     setFuncionarioSelecionado(funcionario);
@@ -420,6 +439,31 @@ const CadastroFuncionarios = () => {
         Total: <span className="font-semibold">{filteredFuncionarios.length}</span> {mostrarVagas ? 'vaga(s) em recrutamento' : 'funcionário(s)'}
         {searchTerm && ` (filtrado de ${funcionarios.filter(f => mostrarVagas ? f.em_recrutamento : !f.em_recrutamento).length})`}
       </div>
+{/* MODAL CONFIRMAR DELETE */}
+{confirmarDelete && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full">
+      <h3 className="text-lg font-bold text-slate-800 mb-2">
+        {confirmarDelete.nome === 'VAGA EM RECRUTAMENTO' ? 'Excluir vaga?' : 'Demitir funcionário?'}
+      </h3>
+      <p className="text-slate-600 text-sm mb-6">
+        {confirmarDelete.nome === 'VAGA EM RECRUTAMENTO'
+          ? 'Tem certeza que deseja excluir esta vaga?'
+          : `Tem certeza que deseja demitir "${confirmarDelete.nome}"? O registro vira uma vaga em recrutamento automaticamente.`}
+      </p>
+      <div className="flex justify-end gap-3">
+        <button onClick={() => setConfirmarDelete(null)}
+          className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition font-semibold">
+          Cancelar
+        </button>
+        <button onClick={handleConfirmarDelete}
+          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-semibold">
+          Confirmar
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* Modal */}
       {modalAberto && (
