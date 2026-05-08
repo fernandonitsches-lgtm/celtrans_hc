@@ -3,9 +3,10 @@ import { usePessoas } from '../hooks/usePessoas';
 import { useAutoScroll } from '../hooks/useAutoScroll';
 import { supabase } from '../lib/supabase';
 import React, { useState, useEffect } from 'react';
-import { Calendar, Download, RotateCcw, Users, ChevronDown, BarChart3, Search, Filter, AlertCircle } from 'lucide-react';
+import { Calendar, Download, RotateCcw, Users, ChevronDown, BarChart3, Search, Filter, AlertCircle, TrendingDown } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import ModalSalvar from './ModalSalvar';
+import RankingFaltas from './RankingFaltas';
 
 const SectorAssignment = () => {
   const [assignments, setAssignments] = useState(null);
@@ -20,6 +21,8 @@ const SectorAssignment = () => {
   const [salvando, setSalvando] = useState(false);
   const [dragOver, setDragOver] = useState(null);
   const [confirmarReset, setConfirmarReset] = useState(false);
+
+  const [dashboardAba, setDashboardAba] = useState('metricas');
 
   const { stopAutoScroll } = useAutoScroll();
   const { initialPeople, operacoes, loading, error } = usePessoas();
@@ -252,9 +255,10 @@ const SectorAssignment = () => {
     };
   };
 
+  // ✅ CORRIGIDO — inclui suporte nos presentes
   const totalAtribuido = Object.keys(assignments)
     .filter(k => k !== 'falta')
-    .reduce((sum, k) => sum + (assignments[k]?.filter(p => !isSuporte(p)).length || 0), 0);
+    .reduce((sum, k) => sum + (assignments[k]?.length || 0), 0);
 
   const pessoasSuporte = initialPeople.filter(p => p.operacao === OP_SUPORTE && !p.de_ferias && !p.em_recrutamento);
   const setoresSuporte = [...new Set(pessoasSuporte.map(p => p.setor))].sort();
@@ -297,93 +301,129 @@ const SectorAssignment = () => {
   const pessoasEmFerias = initialPeople.filter(p => p.de_ferias);
 
   // Dashboard View
-  if (viewMode === 'dashboard') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-3">
-              <BarChart3 className="w-8 h-8 text-purple-600" />
-              <h1 className="text-3xl font-bold text-slate-800">Dashboard de Operações</h1>
-            </div>
-            <button onClick={() => setViewMode('atribuir')} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
-              ← Voltar
+if (viewMode === 'dashboard') {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <BarChart3 className="w-8 h-8 text-purple-600" />
+            <h1 className="text-3xl font-bold text-slate-800">Dashboard de Operações</h1>
+          </div>
+          <button onClick={() => setViewMode('atribuir')} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+            ← Voltar
+          </button>
+        </div>
+
+        {/* Abas do Dashboard */}
+        <div className="bg-white rounded-lg shadow-md mb-6">
+          <div className="flex border-b border-slate-200">
+            <button
+              onClick={() => setDashboardAba('metricas')}
+              className={`flex items-center gap-2 px-6 py-4 font-semibold transition ${
+                dashboardAba === 'metricas'
+                  ? 'text-purple-600 border-b-2 border-purple-600'
+                  : 'text-slate-600 hover:text-slate-800'
+              }`}
+            >
+              <BarChart3 className="w-5 h-5" />
+              Métricas
+            </button>
+            <button
+              onClick={() => setDashboardAba('ranking')}
+              className={`flex items-center gap-2 px-6 py-4 font-semibold transition ${
+                dashboardAba === 'ranking'
+                  ? 'text-purple-600 border-b-2 border-purple-600'
+                  : 'text-slate-600 hover:text-slate-800'
+              }`}
+            >
+              <TrendingDown className="w-5 h-5" />
+              Ranking de Faltas
             </button>
           </div>
+        </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-            {operacoes.filter(op => op !== OP_SUPORTE).map(operacao => {
-              const metricas = getMetricasOperacao(operacao);
-              return (
-                <div key={operacao} className="bg-white rounded-lg shadow-md p-6 border-l-4 border-purple-500">
-                  <h3 className="font-bold text-slate-800 mb-4">{operacao}</h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-600 text-sm">Total:</span>
-                      <span className="font-semibold text-slate-800">{metricas.total}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-600 text-sm">Presentes:</span>
-                      <span className="font-semibold text-green-600">{metricas.presentes}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-600 text-sm">Faltas:</span>
-                      <span className="font-semibold text-red-600">{metricas.faltas}</span>
-                    </div>
-                    <div className="pt-3 border-t border-slate-200">
-                      <span className="text-slate-600 text-sm">Absenteismo:</span>
-                      <div className="flex items-center gap-2 mt-2">
-                        <div className="flex-1 h-3 bg-slate-200 rounded-full overflow-hidden">
-                          <div className="h-full bg-gradient-to-r from-green-500 to-red-500" style={{ width: `${metricas.absenteismo}%` }} />
+        {/* Aba Métricas */}
+        {dashboardAba === 'metricas' && (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+              {operacoes.filter(op => op !== OP_SUPORTE).map(operacao => {
+                const metricas = getMetricasOperacao(operacao);
+                return (
+                  <div key={operacao} className="bg-white rounded-lg shadow-md p-6 border-l-4 border-purple-500">
+                    <h3 className="font-bold text-slate-800 mb-4">{operacao}</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-600 text-sm">Total:</span>
+                        <span className="font-semibold text-slate-800">{metricas.total}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-600 text-sm">Presentes:</span>
+                        <span className="font-semibold text-green-600">{metricas.presentes}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-600 text-sm">Faltas:</span>
+                        <span className="font-semibold text-red-600">{metricas.faltas}</span>
+                      </div>
+                      <div className="pt-3 border-t border-slate-200">
+                        <span className="text-slate-600 text-sm">Absenteismo:</span>
+                        <div className="flex items-center gap-2 mt-2">
+                          <div className="flex-1 h-3 bg-slate-200 rounded-full overflow-hidden">
+                            <div className="h-full bg-gradient-to-r from-green-500 to-red-500" style={{ width: `${metricas.absenteismo}%` }} />
+                          </div>
+                          <span className="font-semibold text-slate-800">{metricas.absenteismo}%</span>
                         </div>
-                        <span className="font-semibold text-slate-800">{metricas.absenteismo}%</span>
                       </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
 
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="font-bold text-slate-800 mb-4">Resumo Geral</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-blue-600">{initialPeople.filter(p => !isSuporte(p) && !p.em_recrutamento).length}</div>
-                <div className="text-sm text-slate-600 mt-1">Total</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-green-600">{totalAtribuido}</div>
-                <div className="text-sm text-slate-600 mt-1">Presentes</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-red-600">{assignments['falta']?.filter(p => !isSuporte(p)).length || 0}</div>
-                <div className="text-sm text-slate-600 mt-1">Faltas</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-orange-500">{initialPeople.filter(p => p.de_ferias && !isSuporte(p)).length}</div>
-                <div className="text-sm text-slate-600 mt-1">Férias</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-purple-600">{initialPeople.filter(p => p.em_recrutamento && !isSuporte(p)).length}</div>
-                <div className="text-sm text-slate-600 mt-1">Em Recrutamento</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-rose-600">
-                  {(() => {
-                    const totalSemSuporte = initialPeople.filter(p => !isSuporte(p) && !p.em_recrutamento).length;
-                    const faltasSemSuporte = assignments['falta']?.filter(p => !isSuporte(p)).length || 0;
-                    return totalSemSuporte > 0 ? ((faltasSemSuporte / totalSemSuporte) * 100).toFixed(1) : '0.0';
-                  })()}%
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h2 className="font-bold text-slate-800 mb-4">Resumo Geral</h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-blue-600">{initialPeople.filter(p => !p.em_recrutamento).length}</div>
+                  <div className="text-sm text-slate-600 mt-1">Total</div>
                 </div>
-                <div className="text-sm text-slate-600 mt-1">Absenteísmo</div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-green-600">{totalAtribuido}</div>
+                  <div className="text-sm text-slate-600 mt-1">Presentes</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-red-600">{assignments['falta']?.filter(p => !isSuporte(p)).length || 0}</div>
+                  <div className="text-sm text-slate-600 mt-1">Faltas</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-orange-500">{initialPeople.filter(p => p.de_ferias).length}</div>
+                  <div className="text-sm text-slate-600 mt-1">Férias</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-purple-600">{initialPeople.filter(p => p.em_recrutamento && !isSuporte(p)).length}</div>
+                  <div className="text-sm text-slate-600 mt-1">Em Recrutamento</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-rose-600">
+                    {(() => {
+                      const totalSemSuporte = initialPeople.filter(p => !isSuporte(p) && !p.em_recrutamento).length;
+                      const faltasSemSuporte = assignments['falta']?.filter(p => !isSuporte(p)).length || 0;
+                      return totalSemSuporte > 0 ? ((faltasSemSuporte / totalSemSuporte) * 100).toFixed(1) : '0.0';
+                    })()}%
+                  </div>
+                  <div className="text-sm text-slate-600 mt-1">Absenteísmo</div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
+          </>
+        )}
+
+        {/* Aba Ranking */}
+        {dashboardAba === 'ranking' && <RankingFaltas />}
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   // Main Assignment View
   return (
@@ -655,7 +695,7 @@ const SectorAssignment = () => {
           justificativas={justificativas}
           onJustificativaChange={handleJustificativa}
           data={today}
-          totalColaboradores={initialPeople.length}
+          totalColaboradores={initialPeople.filter(p => !p.em_recrutamento).length}
           emFerias={initialPeople.filter(p => p.de_ferias)}
           remanejados={
             Object.keys(assignments)

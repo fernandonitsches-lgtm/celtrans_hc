@@ -10,7 +10,6 @@ const RankingFaltas = () => {
   const [expandido, setExpandido] = useState({});
 
   useEffect(() => {
-    // Definir mês/ano atual como padrão
     const hoje = new Date();
     const mesAtual = String(hoje.getMonth() + 1).padStart(2, '0');
     const anoAtual = hoje.getFullYear();
@@ -21,20 +20,11 @@ const RankingFaltas = () => {
     if (mesAno) {
       fetchFaltas();
 
-      // Real-time subscription para atualizações da tabela faltas_diarias
       const subscription = supabase
         .channel(`faltas_${mesAno}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'faltas_diarias'
-          },
-          () => {
-            fetchFaltas();
-          }
-        )
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'faltas_diarias' }, () => {
+          fetchFaltas();
+        })
         .subscribe();
 
       return () => {
@@ -53,30 +43,37 @@ const RankingFaltas = () => {
       const ultimoDia = new Date(ano, mes, 0).getDate();
       const dataFim = `${ano}-${mes}-${ultimoDia}`;
 
-      const { data, error } = await supabase
-        .from('faltas_diarias')
-        .select('*')
-        .gte('data', dataInicio)
-        .lte('data', dataFim)
-        .order('data', { ascending: false });
+      const [{ data, error }, { data: pessoas, error: pessoasError }] = await Promise.all([
+        supabase
+          .from('faltas_diarias')
+          .select('*')
+          .gte('data', dataInicio)
+          .lte('data', dataFim)
+          .order('data', { ascending: false }),
+        supabase
+          .from('pessoas')
+          .select('id, cargo, operacao')
+      ]);
 
       if (error) throw error;
+      if (pessoasError) throw pessoasError;
 
-      // Agrupar faltas por pessoa
+      const pessoasMap = {};
+      pessoas.forEach(p => { pessoasMap[p.id] = p; });
+
       const faltasPorPessoa = {};
-      
       data.forEach(falta => {
         if (!faltasPorPessoa[falta.pessoa_id]) {
+          const pessoaAtual = pessoasMap[falta.pessoa_id];
           faltasPorPessoa[falta.pessoa_id] = {
             pessoa_id: falta.pessoa_id,
             pessoa_nome: falta.pessoa_nome,
-            cargo: falta.cargo,
-            operacao: falta.operacao,
+            cargo: pessoaAtual?.cargo || falta.cargo,
+            operacao: pessoaAtual?.operacao || falta.operacao,
             total_faltas: 0,
             detalhes: []
           };
         }
-        
         faltasPorPessoa[falta.pessoa_id].total_faltas++;
         faltasPorPessoa[falta.pessoa_id].detalhes.push({
           data: falta.data,
@@ -85,7 +82,6 @@ const RankingFaltas = () => {
         });
       });
 
-      // Converter para array e ordenar por número de faltas (decrescente)
       const ranking = Object.values(faltasPorPessoa)
         .sort((a, b) => b.total_faltas - a.total_faltas);
 
@@ -105,10 +101,6 @@ const RankingFaltas = () => {
 
   const getMedalha = (posicao) => {
     return `${posicao + 1}º`;
-  };
-
-  const getCorPorPosicao = (posicao) => {
-    return 'bg-white border-slate-200';
   };
 
   if (loading) {
@@ -140,7 +132,7 @@ const RankingFaltas = () => {
           <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
           <p className="text-red-700 flex-1">{error}</p>
           <button onClick={() => setError('')}>
-            <X className="w-5 h-5 text-red-600" />
+            <ChevronDown className="w-5 h-5 text-red-600" />
           </button>
         </div>
       )}
@@ -176,18 +168,14 @@ const RankingFaltas = () => {
           {faltas.map((pessoa, index) => (
             <div
               key={pessoa.pessoa_id}
-              className={`rounded-lg shadow-md border-2 overflow-hidden transition-all ${getCorPorPosicao(index)}`}
+              className="rounded-lg shadow-md border-2 overflow-hidden transition-all bg-white border-slate-200"
             >
-              {/* Card Principal */}
               <div className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4 flex-1">
-                    {/* Posição/Medalha */}
                     <div className="text-3xl font-bold">
                       {getMedalha(index)}
                     </div>
-
-                    {/* Info da Pessoa */}
                     <div className="flex-1">
                       <h3 className="text-lg font-bold text-slate-800">{pessoa.pessoa_nome}</h3>
                       <div className="flex gap-4 text-sm text-slate-600 mt-1">
@@ -195,37 +183,26 @@ const RankingFaltas = () => {
                         <span>🏭 {pessoa.operacao}</span>
                       </div>
                     </div>
-
-                    {/* Contador de Faltas */}
                     <div className="text-center">
                       <div className="text-4xl font-bold text-red-600">{pessoa.total_faltas}</div>
                       <div className="text-xs text-slate-600">
                         {pessoa.total_faltas === 1 ? 'falta' : 'faltas'}
                       </div>
                     </div>
-
-                    {/* Botão Ver Detalhes */}
                     <button
                       onClick={() => setExpandido(prev => ({ ...prev, [pessoa.pessoa_id]: !prev[pessoa.pessoa_id] }))}
                       className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
                     >
                       {expandido[pessoa.pessoa_id] ? (
-                        <>
-                          <ChevronUp className="w-4 h-4" />
-                          Ocultar
-                        </>
+                        <><ChevronUp className="w-4 h-4" />Ocultar</>
                       ) : (
-                        <>
-                          <ChevronDown className="w-4 h-4" />
-                          Ver Detalhes
-                        </>
+                        <><ChevronDown className="w-4 h-4" />Ver Detalhes</>
                       )}
                     </button>
                   </div>
                 </div>
               </div>
 
-              {/* Detalhes Expandidos */}
               {expandido[pessoa.pessoa_id] && (
                 <div className="border-t border-slate-200 bg-slate-50 p-4">
                   <h4 className="font-semibold text-slate-800 mb-3">📅 Histórico de Faltas:</h4>
