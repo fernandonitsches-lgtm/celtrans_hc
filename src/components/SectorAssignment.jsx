@@ -52,15 +52,16 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
 
   const makeKey = (op, st) => `${op}||${st}`;
 
-  // Operações filtradas pelo CD ativo
-  const operacoesFiltradas = filterCd === 'todos'
-    ? operacoes
-    : [...new Set(initialPeople.filter(p => p.cd === filterCd).map(p => p.operacao))]
-        .filter(op => op !== 'ANALISTA GERAL' && op !== OP_SUPORTE)
-        .sort();
+  const opsNorm = operacoes.filter(op => op !== OP_NET && op !== 'ANALISTA GERAL');
+  const temNet  = operacoes.includes(OP_NET);
 
-  const opsNorm = operacoesFiltradas.filter(op => op !== OP_NET && op !== 'ANALISTA GERAL');
-  const temNet  = operacoesFiltradas.includes(OP_NET);
+  // Operações que têm pelo menos 1 pessoa no CD filtrado
+  const opsVisiveis = filterCd === 'todos'
+    ? opsNorm
+    : opsNorm.filter(op => initialPeople.some(p => p.cd === filterCd && p.operacao === op));
+  const temNetVisivel = filterCd === 'todos'
+    ? temNet
+    : initialPeople.some(p => p.cd === filterCd && p.operacao === OP_NET);
 
   const areasNet = [...new Set(
     initialPeople
@@ -722,10 +723,10 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
         <div className="flex gap-4 items-start">
           <div className="flex-1 min-w-0 space-y-3">
             {/* Operações normais */}
-            {opsNorm.filter(op => filterOperacao === 'todas' || op === filterOperacao).map(op => renderOperacaoBlock(op))}
+            {opsVisiveis.filter(op => filterOperacao === 'todas' || op === filterOperacao).map(op => renderOperacaoBlock(op))}
 
             {/* Bloco NET */}
-            {temNet && (filterOperacao === 'todas' || filterOperacao === OP_NET) && (
+            {temNetVisivel && (filterOperacao === 'todas' || filterOperacao === OP_NET) && (
               <div className="bg-white rounded-xl border-2 border-blue-200 shadow-sm overflow-hidden">
                 <button onClick={() => setExpandedNetGroup(v => !v)}
                   className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-blue-50 transition border-l-4 border-blue-600">
@@ -1002,4 +1003,4 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
   );
 };
 
-export default SectorAssignment;""
+export default SectorAssignment;
