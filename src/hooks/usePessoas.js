@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { OPERACOES_EXCLUIDAS, OP_COMPARTILHADO } from '../constants/operacoes';
 
 export const usePessoas = () => {
   const [initialPeople, setInitialPeople] = useState([]);
-  const [operacoes, setOperacoes] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [operacoes, setOperacoes]         = useState([]);
+  const [cds, setCds]                     = useState([]);
+  const [loading, setLoading]             = useState(true);
+  const [error, setError]                 = useState(null);
 
   useEffect(() => {
     const fetchPeople = async () => {
@@ -21,12 +21,18 @@ export const usePessoas = () => {
 
         if (data) {
           setInitialPeople(data);
+
+          // Operações — exclui ANALISTA GERAL e SUPORTE, COMPARTILHADO vai pro final
           const sorted = [...new Set(data.map(p => p.operacao))]
-            .filter(op => !OPERACOES_EXCLUIDAS.includes(op))
+            .filter(op => op !== 'ANALISTA GERAL' && op !== 'SUPORTE')
             .sort();
-          const idx = sorted.indexOf(OP_COMPARTILHADO);
-          if (idx > -1) { sorted.splice(idx, 1); sorted.push(OP_COMPARTILHADO); }
+          const idx = sorted.indexOf('COMPARTILHADO');
+          if (idx > -1) { sorted.splice(idx, 1); sorted.push('COMPARTILHADO'); }
           setOperacoes(sorted);
+
+          // CDs — valores únicos não-nulos, ordenados
+          const cdsSorted = [...new Set(data.map(p => p.cd).filter(Boolean))].sort();
+          setCds(cdsSorted);
         }
       } catch (err) {
         setError(err.message);
@@ -38,5 +44,5 @@ export const usePessoas = () => {
     fetchPeople();
   }, []);
 
-  return { initialPeople, operacoes, loading, error };
+  return { initialPeople, operacoes, cds, loading, error };
 };

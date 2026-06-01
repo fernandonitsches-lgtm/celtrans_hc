@@ -1,64 +1,56 @@
 import { supabase } from '../lib/supabase';
 import React, { useState, useEffect } from 'react';
-import { History, Search, Download, ChevronDown, AlertCircle } from 'lucide-react';
+import { History, Search, Download, ChevronDown, AlertCircle, Building2 } from 'lucide-react';
 import ExcelJS from 'exceljs';
+import { MOTIVOS_AUSENCIA } from '../constants/motivos';
+
+const LABEL_MOTIVO = (valor) => {
+  if (!valor) return '';
+  const found = MOTIVOS_AUSENCIA.find(m => m.value === valor);
+  return found ? found.label : valor;
+};
 
 const Historico = () => {
   const [atribuicoes, setAtribuicoes] = useState([]);
-  const [faltas, setFaltas] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterData, setFilterData] = useState('');
-  const [periodoFiltro, setPeriodoFiltro] = useState('dia'); // 'dia' | 'semana' | 'mes'
-  const [expandedDates, setExpandedDates] = useState({});
+  const [faltas, setFaltas]           = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState('');
+  const [searchTerm, setSearchTerm]   = useState('');
+  const [filterData, setFilterData]   = useState('');
+  const [filterCd, setFilterCd]       = useState('todos');
+  const [filterOperacao, setFilterOperacao] = useState('todas');
+  const [periodoFiltro, setPeriodoFiltro]   = useState('semana');
+  const [expandedDates, setExpandedDates]   = useState({});
 
-  // ✅ CORREÇÃO: Função para formatar data corretamente
   const formatarData = (dataString) => {
     const [ano, mes, dia] = dataString.split('-');
     return `${dia}/${mes}/${ano}`;
   };
 
-  useEffect(() => {
-    fetchHistorico();
-  }, []);
+  useEffect(() => { fetchHistorico(); }, []);
 
-  // Recarrega dados quando a data do filtro muda
   useEffect(() => {
-    if (filterData) {
-      fetchHistoricoByDate(filterData);
-    }
+    if (filterData) fetchHistoricoByDate(filterData);
   }, [filterData]);
 
-  // Recarrega dados quando o período é alterado
   useEffect(() => {
-    if (!filterData) {
-      fetchHistorico();
-    }
+    if (!filterData) fetchHistorico();
   }, [periodoFiltro]);
 
   const fetchHistorico = async () => {
     try {
       setLoading(true);
       setError('');
+      const dias = periodoFiltro === 'dia' ? 1 : periodoFiltro === 'semana' ? 7 : 30;
+      const dataInicio = new Date(Date.now() - dias * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-      // Buscar últimos 30 dias de atribuições
-      const { data: atrib, error: atribError } = await supabase
-        .from('atribuicoes_diarias')
-        .select('*')
-        .gte('data', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
-        .order('data', { ascending: false });
+      const [{ data: atrib, error: atribErr }, { data: faltasData, error: faltasErr }] = await Promise.all([
+        supabase.from('atribuicoes_diarias').select('*').gte('data', dataInicio).order('data', { ascending: false }),
+        supabase.from('faltas_diarias').select('*').gte('data', dataInicio).order('data', { ascending: false }),
+      ]);
 
-      // Buscar últimos 30 dias de faltas
-      const { data: faltasData, error: faltasError } = await supabase
-        .from('faltas_diarias')
-        .select('*')
-        .gte('data', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
-        .order('data', { ascending: false });
-
-      if (atribError) throw atribError;
-      if (faltasError) throw faltasError;
-
+      if (atribErr) throw atribErr;
+      if (faltasErr) throw faltasErr;
       setAtribuicoes(atrib || []);
       setFaltas(faltasData || []);
     } catch (err) {
@@ -72,276 +64,242 @@ const Historico = () => {
     try {
       setLoading(true);
       setError('');
-
-      // Buscar atribuições para a data específica
-      const { data: atrib, error: atribError } = await supabase
-        .from('atribuicoes_diarias')
-        .select('*')
-        .eq('data', data)
-        .order('pessoa_nome', { ascending: true });
-
-      // Buscar faltas para a data específica
-      const { data: faltasData, error: faltasError } = await supabase
-        .from('faltas_diarias')
-        .select('*')
-        .eq('data', data)
-        .order('pessoa_nome', { ascending: true });
-
-      if (atribError) throw atribError;
-      if (faltasError) throw faltasError;
-
+      const [{ data: atrib, error: atribErr }, { data: faltasData, error: faltasErr }] = await Promise.all([
+        supabase.from('atribuicoes_diarias').select('*').eq('data', data).order('pessoa_nome', { ascending: true }),
+        supabase.from('faltas_diarias').select('*').eq('data', data).order('pessoa_nome', { ascending: true }),
+      ]);
+      if (atribErr) throw atribErr;
+      if (faltasErr) throw faltasErr;
       setAtribuicoes(atrib || []);
       setFaltas(faltasData || []);
     } catch (err) {
-      setError('Erro ao carregar dados da data selecionada: ' + err.message);
+      setError('Erro ao carregar dados: ' + err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const getDateRange = () => {
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    if (periodoFiltro === 'dia') {
-      const dataHoje = hoje.toISOString().split('T')[0];
-      return { inicio: dataHoje, fim: dataHoje };
-    }
-    if (periodoFiltro === 'semana') {
-      const diaSemana = hoje.getDay();
-      const inicioSemana = new Date(hoje);
-      inicioSemana.setDate(hoje.getDate() - diaSemana);
-      const fimSemana = new Date(hoje);
-      fimSemana.setDate(hoje.getDate() + (6 - diaSemana));
-      return {
-        inicio: inicioSemana.toISOString().split('T')[0],
-        fim: fimSemana.toISOString().split('T')[0],
-      };
-    }
-    if (periodoFiltro === 'mes') {
-      const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-      const fimMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
-      return {
-        inicio: inicioMes.toISOString().split('T')[0],
-        fim: fimMes.toISOString().split('T')[0],
-      };
-    }
-    return { inicio: null, fim: null };
+  // CDs e operações disponíveis nos dados
+  const cdsDisponiveis = [...new Set([
+    ...atribuicoes.map(a => a.cd),
+    ...faltas.map(f => f.cd),
+  ].filter(Boolean))].sort();
+
+  const operacoesDisponiveis = [...new Set([
+    ...atribuicoes.map(a => a.operacao),
+    ...faltas.map(f => f.operacao),
+  ].filter(Boolean))].sort();
+
+  const matchFiltros = (item) => {
+    const matchSearch = !searchTerm ||
+      item.pessoa_nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.setor?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.operacao?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchCd = filterCd === 'todos' || item.cd === filterCd;
+    const matchOp = filterOperacao === 'todas' || item.operacao === filterOperacao;
+    return matchSearch && matchCd && matchOp;
   };
 
-  const { inicio, fim } = getDateRange();
+  const filteredAtribuicoes = atribuicoes.filter(matchFiltros);
+  const filteredFaltas      = faltas.filter(matchFiltros);
 
-  const filteredAtribuicoes = atribuicoes.filter(a => {
-    const matchSearch = a.pessoa_nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                       a.setor.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchData = !filterData ? (a.data >= inicio && a.data <= fim) : a.data === filterData;
-    return matchSearch && matchData;
-  });
+  const groupBy = (items) => {
+    const groups = {};
+    items.forEach(item => {
+      if (!groups[item.data]) groups[item.data] = [];
+      groups[item.data].push(item);
+    });
+    return groups;
+  };
 
-  const filteredFaltas = faltas.filter(f => {
-    const matchSearch = f.pessoa_nome.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchData = !filterData ? (f.data >= inicio && f.data <= fim) : f.data === filterData;
-    return matchSearch && matchData;
-  });
+  const groupedAtribuicoes = groupBy(filteredAtribuicoes);
+  const groupedFaltas      = groupBy(filteredFaltas);
+  const todasDatas = [...new Set([...Object.keys(groupedAtribuicoes), ...Object.keys(groupedFaltas)])].sort().reverse();
 
-  const groupedAtribuicoes = {};
-  filteredAtribuicoes.forEach(a => {
-    if (!groupedAtribuicoes[a.data]) {
-      groupedAtribuicoes[a.data] = [];
-    }
-    groupedAtribuicoes[a.data].push(a);
-  });
-
-  const groupedFaltas = {};
-  filteredFaltas.forEach(f => {
-    if (!groupedFaltas[f.data]) {
-      groupedFaltas[f.data] = [];
-    }
-    groupedFaltas[f.data].push(f);
-  });
-
-  const handleExportHistorico = async () => {
+  const handleExport = async () => {
     const workbook = new ExcelJS.Workbook();
     const ws = workbook.addWorksheet('Histórico');
     ws.columns = [
-      { header: 'Data', key: 'Data', width: 12 },
-      { header: 'Tipo', key: 'Tipo', width: 12 },
-      { header: 'Pessoa', key: 'Pessoa', width: 20 },
-      { header: 'Setor', key: 'Setor', width: 15 },
-      { header: 'Cargo', key: 'Cargo', width: 15 },
-      { header: 'Operação', key: 'Operação', width: 15 },
-      { header: 'Justificativa', key: 'Justificativa', width: 30 }
+      { header: 'Data',         key: 'Data',         width: 12 },
+      { header: 'Tipo',         key: 'Tipo',         width: 12 },
+      { header: 'CD',           key: 'CD',           width: 15 },
+      { header: 'Pessoa',       key: 'Pessoa',       width: 30 },
+      { header: 'Cargo',        key: 'Cargo',        width: 20 },
+      { header: 'Operação',     key: 'Operacao',     width: 20 },
+      { header: 'Setor',        key: 'Setor',        width: 20 },
+      { header: 'Motivo',       key: 'Motivo',       width: 30 },
+      { header: 'Justificativa',key: 'Justificativa',width: 40 },
     ];
-
-    // Adicionar dados de atribuições
-    Object.keys(groupedAtribuicoes).forEach(data => {
-      groupedAtribuicoes[data].forEach(a => {
-        ws.addRow({
-          'Data': data,
-          'Tipo': 'PRESENTE',
-          'Pessoa': a.pessoa_nome,
-          'Setor': a.setor,
-          'Cargo': a.cargo,
-          'Operação': a.operacao,
-          'Justificativa': ''
-        });
-      });
+    filteredAtribuicoes.forEach(a => {
+      ws.addRow({ Data: a.data, Tipo: 'PRESENTE', CD: a.cd || '', Pessoa: a.pessoa_nome, Cargo: a.cargo, Operacao: a.operacao, Setor: a.setor, Motivo: '', Justificativa: '' });
     });
-
-    // Adicionar dados de faltas
-    Object.keys(groupedFaltas).forEach(data => {
-      groupedFaltas[data].forEach(f => {
-        ws.addRow({
-          'Data': data,
-          'Tipo': 'FALTA',
-          'Pessoa': f.pessoa_nome,
-          'Setor': '',
-          'Cargo': f.cargo,
-          'Operação': f.operacao,
-          'Justificativa': f.justificativa || ''
-        });
-      });
+    filteredFaltas.forEach(f => {
+      ws.addRow({ Data: f.data, Tipo: 'FALTA', CD: f.cd || '', Pessoa: f.pessoa_nome, Cargo: f.cargo, Operacao: f.operacao, Setor: '', Motivo: LABEL_MOTIVO(f.motivo), Justificativa: f.justificativa || '' });
     });
-    
-    // Gerar e baixar arquivo
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `historico_atribuicoes.xlsx`;
+    link.download = `historico_${new Date().toISOString().split('T')[0]}.xlsx`;
     link.click();
     URL.revokeObjectURL(url);
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin mb-4">
-            <History className="w-12 h-12 text-blue-600 mx-auto" />
-          </div>
-          <p className="text-slate-600 text-lg">Carregando histórico...</p>
+          <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-slate-500">Carregando histórico...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
+    <div className="min-h-screen bg-slate-50 p-6">
+      <div className="max-w-7xl mx-auto space-y-5">
+
+        {/* Header */}
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <History className="w-8 h-8 text-blue-600" />
-            <h1 className="text-3xl font-bold text-slate-800">Histórico de Atribuições</h1>
+            <History className="w-7 h-7 text-blue-600" />
+            <div>
+              <h1 className="text-xl font-bold text-slate-800">Histórico de Atribuições</h1>
+              <p className="text-xs text-slate-400 mt-0.5">Consulte e exporte registros de presença e faltas</p>
+            </div>
           </div>
-          <button
-            onClick={handleExportHistorico}
-            className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition"
-          >
-            <Download className="w-4 h-4" />
-            Exportar XLSX
+          <button onClick={handleExport}
+            className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition text-sm font-semibold">
+            <Download className="w-4 h-4" /> Exportar XLSX
           </button>
         </div>
 
+        {/* Erro */}
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-            <p className="text-red-700">{error}</p>
+          <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+            <p className="text-red-700 text-sm">{error}</p>
           </div>
         )}
 
-        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-          {/* Filtro de Período */}
-          <div className="flex gap-2 mb-4">
+        {/* Filtros */}
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-3">
+          {/* Período rápido */}
+          <div className="flex gap-2 flex-wrap">
             {[
               { label: 'Hoje', value: 'dia' },
-              { label: 'Esta Semana', value: 'semana' },
-              { label: 'Este Mês', value: 'mes' },
+              { label: 'Últimos 7 dias', value: 'semana' },
+              { label: 'Últimos 30 dias', value: 'mes' },
             ].map(op => (
-              <button
-                key={op.value}
+              <button key={op.value}
                 onClick={() => { setPeriodoFiltro(op.value); setFilterData(''); }}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
                   periodoFiltro === op.value && !filterData
                     ? 'bg-blue-600 text-white'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
+                }`}>
                 {op.label}
               </button>
             ))}
           </div>
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Buscar por pessoa ou setor..."
-                value={searchTerm}
+
+          {/* Busca + filtros */}
+          <div className="flex gap-3 flex-wrap">
+            <div className="flex-1 relative min-w-48">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input type="text" placeholder="Buscar por nome, setor ou operação..." value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+                className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-slate-50" />
             </div>
-            <div>
-              <input
-                type="date"
-                value={filterData}
-                onChange={(e) => setFilterData(e.target.value)}
-                className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            {(searchTerm || filterData) && (
-              <button
-                onClick={() => {
-                  setSearchTerm('');
-                  setFilterData('');
-                }}
-                className="px-4 py-2 bg-slate-300 text-slate-700 rounded-lg hover:bg-slate-400 transition"
-              >
-                Limpar Filtros
+
+            <input type="date" value={filterData} onChange={(e) => setFilterData(e.target.value)}
+              className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-slate-50" />
+
+            {cdsDisponiveis.length > 0 && (
+              <select value={filterCd} onChange={(e) => setFilterCd(e.target.value)}
+                className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-slate-50">
+                <option value="todos">Todos os CDs</option>
+                {cdsDisponiveis.map(cd => <option key={cd} value={cd}>{cd}</option>)}
+              </select>
+            )}
+
+            <select value={filterOperacao} onChange={(e) => setFilterOperacao(e.target.value)}
+              className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-slate-50">
+              <option value="todas">Todas as operações</option>
+              {operacoesDisponiveis.map(op => <option key={op} value={op}>{op}</option>)}
+            </select>
+
+            {(searchTerm || filterData || filterCd !== 'todos' || filterOperacao !== 'todas') && (
+              <button onClick={() => { setSearchTerm(''); setFilterData(''); setFilterCd('todos'); setFilterOperacao('todas'); }}
+                className="px-3 py-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition text-sm font-medium">
+                Limpar
               </button>
             )}
           </div>
+
+          {/* Resumo do período */}
+          <div className="flex gap-4 pt-1">
+            <span className="text-xs text-slate-400">
+              <span className="font-semibold text-green-600">{filteredAtribuicoes.length}</span> presenças ·{' '}
+              <span className="font-semibold text-red-600">{filteredFaltas.length}</span> faltas ·{' '}
+              <span className="font-semibold text-slate-600">{todasDatas.length}</span> dias
+            </span>
+          </div>
         </div>
 
-        <div className="space-y-4">
-          {Object.keys(groupedAtribuicoes).length === 0 && Object.keys(groupedFaltas).length === 0 ? (
-            <div className="bg-white rounded-lg shadow-md p-8 text-center">
-              <p className="text-slate-500 text-lg">Nenhum registro encontrado</p>
-            </div>
-          ) : (
-            Object.keys({ ...groupedAtribuicoes, ...groupedFaltas })
-              .sort()
-              .reverse()
-              .map(data => (
-                <div key={data} className="bg-white rounded-lg shadow-md overflow-hidden">
+        {/* Lista por data */}
+        {todasDatas.length === 0 ? (
+          <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-12 text-center">
+            <History className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+            <p className="text-slate-400 font-medium">Nenhum registro encontrado</p>
+            <p className="text-slate-300 text-sm mt-1">Tente ajustar os filtros</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {todasDatas.map(data => {
+              const atribDia  = groupedAtribuicoes[data] || [];
+              const faltasDia = groupedFaltas[data] || [];
+              const total     = atribDia.length + faltasDia.length;
+              const isOpen    = expandedDates[data];
+
+              return (
+                <div key={data} className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
                   <button
                     onClick={() => setExpandedDates(prev => ({ ...prev, [data]: !prev[data] }))}
-                    className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition border-l-4 border-blue-500"
-                  >
+                    className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-slate-50 transition border-l-4 border-blue-500">
                     <div className="flex items-center gap-3">
-                      <ChevronDown 
-                        className={`w-5 h-5 transition-transform ${expandedDates[data] ? '' : '-rotate-90'}`}
-                      />
-                      <span className="font-bold text-slate-800">{formatarData(data)}</span>
-                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                        {(groupedAtribuicoes[data]?.length || 0) + (groupedFaltas[data]?.length || 0)} registros
-                      </span>
+                      <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? '' : '-rotate-90'}`} />
+                      <span className="font-bold text-slate-700">{formatarData(data)}</span>
+                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">{total} registros</span>
+                      {atribDia.length > 0 && (
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">{atribDia.length} presentes</span>
+                      )}
+                      {faltasDia.length > 0 && (
+                        <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">{faltasDia.length} faltas</span>
+                      )}
                     </div>
                   </button>
 
-                  {expandedDates[data] && (
-                    <div className="border-t border-slate-200 p-4 space-y-4">
-                      {groupedAtribuicoes[data] && groupedAtribuicoes[data].length > 0 && (
+                  {isOpen && (
+                    <div className="border-t border-slate-100 p-4 space-y-4">
+                      {/* Presentes */}
+                      {atribDia.length > 0 && (
                         <div>
-                          <h3 className="font-semibold text-green-700 mb-3">✓ Presentes ({groupedAtribuicoes[data].length})</h3>
-                          <div className="space-y-2">
-                            {groupedAtribuicoes[data].map(a => (
-                              <div key={a.id} className="bg-green-50 p-3 rounded-lg border-l-3 border-green-500">
+                          <h3 className="font-semibold text-green-700 mb-2 text-sm">✓ Presentes ({atribDia.length})</h3>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                            {atribDia.map(a => (
+                              <div key={a.id} className="bg-green-50 p-3 rounded-lg border border-green-100 text-xs">
                                 <div className="font-semibold text-slate-800">{a.pessoa_nome}</div>
-                                <div className="text-sm text-slate-600 mt-1">
-                                  <span className="block">Setor: {a.setor}</span>
-                                  <span className="block">Cargo: {a.cargo}</span>
+                                <div className="text-slate-500 mt-0.5">{a.cargo}</div>
+                                <div className="flex items-center justify-between mt-1 flex-wrap gap-1">
+                                  <span className="text-slate-400">{a.setor} · {a.operacao}</span>
+                                  {a.cd && (
+                                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                                      <Building2 className="w-2.5 h-2.5" />{a.cd}
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             ))}
@@ -349,19 +307,35 @@ const Historico = () => {
                         </div>
                       )}
 
-                      {groupedFaltas[data] && groupedFaltas[data].length > 0 && (
+                      {/* Faltas */}
+                      {faltasDia.length > 0 && (
                         <div>
-                          <h3 className="font-semibold text-red-700 mb-3">❌ Faltas ({groupedFaltas[data].length})</h3>
-                          <div className="space-y-2">
-                            {groupedFaltas[data].map(f => (
-                              <div key={f.id} className="bg-red-50 p-3 rounded-lg border-l-3 border-red-500">
-                                <div className="font-semibold text-slate-800">{f.pessoa_nome}</div>
-                                <div className="text-sm text-slate-600 mt-1">
-                                  <span className="block">Cargo: {f.cargo}</span>
-                                  {f.justificativa && (
-                                    <span className="block">Justificativa: {f.justificativa}</span>
+                          <h3 className="font-semibold text-red-700 mb-2 text-sm">❌ Faltas ({faltasDia.length})</h3>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {faltasDia.map(f => (
+                              <div key={f.id} className="bg-red-50 p-3 rounded-lg border border-red-100 text-xs">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <div className="font-semibold text-slate-800">{f.pessoa_nome}</div>
+                                    <div className="text-slate-500 mt-0.5">{f.cargo} · {f.operacao}</div>
+                                  </div>
+                                  {f.cd && (
+                                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium flex-shrink-0">
+                                      <Building2 className="w-2.5 h-2.5" />{f.cd}
+                                    </span>
                                   )}
                                 </div>
+                                {f.motivo && (
+                                  <span className="inline-block mt-1.5 px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-medium">
+                                    {LABEL_MOTIVO(f.motivo)}
+                                  </span>
+                                )}
+                                {f.justificativa && (
+                                  <p className="text-slate-500 mt-1 italic">"{f.justificativa}"</p>
+                                )}
+                                {f.plano_acao && (
+                                  <p className="text-slate-400 mt-1">Plano: {f.plano_acao}</p>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -370,9 +344,10 @@ const Historico = () => {
                     </div>
                   )}
                 </div>
-              ))
-          )}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
