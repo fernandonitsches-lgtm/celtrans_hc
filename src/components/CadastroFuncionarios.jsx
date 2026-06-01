@@ -82,14 +82,15 @@ const filtrarFuncionarios = (funcionarios, searchTerm, mostrarVagas, filterCd) =
     return matchCd && (mostrarVagas ? f.em_recrutamento && match : !f.em_recrutamento && match);
   });
 
-const CadastroFuncionarios = () => {
+const CadastroFuncionarios = ({ userCd = 'todos' }) => {
   const [funcionarios, setFuncionarios]         = useState([]);
   const [loading, setLoading]                   = useState(true);
   const [error, setError]                       = useState('');
   const [success, setSuccess]                   = useState('');
   const [searchTerm, setSearchTerm]             = useState('');
   const [mostrarVagas, setMostrarVagas]         = useState(false);
-  const [filterCd, setFilterCd]                 = useState('todos');
+  const [filterCd, setFilterCd]                 = useState(userCd);
+  const cdBloqueado                             = userCd !== 'todos';
   const [modalAberto, setModalAberto]           = useState(false);
   const [editando, setEditando]                 = useState(false);
   const [funcionarioSelecionado, setFuncionarioSelecionado] = useState(null);
@@ -150,8 +151,7 @@ const CadastroFuncionarios = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setSuccess('');
+    setError(''); setSuccess('');
     if (!modoRecrutamento && !formData.name) { setError('Preencha o nome do funcionário'); return; }
     if (!formData.cargo || !formData.setor || !formData.operacao) { setError('Preencha todos os campos obrigatórios (cargo, setor e operação)'); return; }
     try {
@@ -161,7 +161,7 @@ const CadastroFuncionarios = () => {
         exibirSucesso('Atualizado com sucesso!');
       } else if (modoRecrutamento) {
         await pessoasService.insert(formData);
-        exibirSucesso('Vaga em recrutamento criada com sucesso!');
+        exibirSucesso('Vaga em recrutamento criada!');
         setMostrarVagas(true);
       } else {
         await pessoasService.insert(formData);
@@ -199,14 +199,9 @@ const CadastroFuncionarios = () => {
   const handleEdit = (funcionario) => {
     setFuncionarioSelecionado(funcionario);
     setFormData({
-      name: funcionario.name,
-      cargo: funcionario.cargo,
-      area: funcionario.area || '',
-      setor: funcionario.setor,
-      operacao: funcionario.operacao,
-      cd: funcionario.cd || '',
-      de_ferias: funcionario.de_ferias || false,
-      em_recrutamento: funcionario.em_recrutamento || false,
+      name: funcionario.name, cargo: funcionario.cargo, area: funcionario.area || '',
+      setor: funcionario.setor, operacao: funcionario.operacao, cd: funcionario.cd || '',
+      de_ferias: funcionario.de_ferias || false, em_recrutamento: funcionario.em_recrutamento || false,
     });
     setEditando(true);
     setModalAberto(true);
@@ -215,7 +210,8 @@ const CadastroFuncionarios = () => {
   const handleNovo = () => {
     setFuncionarioSelecionado(null);
     setModoRecrutamento(false);
-    setFormData(formInicial);
+    // Pré-preenche CD se usuário for restrito
+    setFormData({ ...formInicial, cd: cdBloqueado ? userCd : '' });
     setEditando(false);
     setModalAberto(true);
   };
@@ -223,7 +219,7 @@ const CadastroFuncionarios = () => {
   const handleNovaVaga = () => {
     setFuncionarioSelecionado(null);
     setModoRecrutamento(true);
-    setFormData({ ...formInicial, name: 'VAGA EM RECRUTAMENTO', em_recrutamento: true });
+    setFormData({ ...formInicial, name: 'VAGA EM RECRUTAMENTO', em_recrutamento: true, cd: cdBloqueado ? userCd : '' });
     setEditando(false);
     setModalAberto(true);
   };
@@ -246,6 +242,11 @@ const CadastroFuncionarios = () => {
         <div className="flex items-center gap-3">
           <Users className="w-7 h-7 text-blue-600" />
           <h2 className="text-xl font-bold text-slate-800">Gestão de Funcionários</h2>
+          {cdBloqueado && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">
+              <Building2 className="w-3 h-3" /> {userCd}
+            </span>
+          )}
         </div>
         <div className="flex gap-2">
           <button onClick={handleNovaVaga}
@@ -284,18 +285,18 @@ const CadastroFuncionarios = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50" />
           </div>
-          {/* Filtro CD */}
           {cdsUnicos.length > 0 && (
-            <select value={filterCd} onChange={(e) => setFilterCd(e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50">
+            <select
+              value={filterCd}
+              onChange={(e) => !cdBloqueado && setFilterCd(e.target.value)}
+              disabled={cdBloqueado}
+              className={`px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 ${cdBloqueado ? 'opacity-60 cursor-not-allowed' : ''}`}>
               <option value="todos">Todos os CDs</option>
               {cdsUnicos.map(cd => <option key={cd} value={cd}>{cd}</option>)}
             </select>
           )}
           <button onClick={() => setMostrarVagas(!mostrarVagas)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition text-sm ${
-              mostrarVagas ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}>
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition text-sm ${mostrarVagas ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>
             <Filter className="w-4 h-4" />
             {mostrarVagas ? 'Vagas' : 'Funcionários'}
           </button>
@@ -486,12 +487,19 @@ const CadastroFuncionarios = () => {
                   )}
                 </div>
 
-                {/* ── Campo CD ── */}
+                {/* Campo CD */}
                 <div className="md:col-span-2">
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">
                     <span className="flex items-center gap-1"><Building2 className="w-3.5 h-3.5" /> CD (Centro de Distribuição)</span>
                   </label>
-                  {!cdCustom ? (
+                  {cdBloqueado ? (
+                    // Usuário restrito: CD fixo, não pode alterar
+                    <div className="px-3 py-2.5 border border-slate-200 rounded-xl bg-slate-50 text-sm text-slate-600 flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-blue-500" />
+                      <span className="font-semibold text-blue-700">{userCd}</span>
+                      <span className="text-slate-400 text-xs ml-1">(fixo para seu perfil)</span>
+                    </div>
+                  ) : !cdCustom ? (
                     <div className="flex gap-2">
                       <select value={formData.cd} onChange={(e) => setFormData({ ...formData, cd: e.target.value })}
                         className="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm">

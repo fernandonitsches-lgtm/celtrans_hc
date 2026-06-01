@@ -10,7 +10,7 @@ import Sidebar from './components/Sidebar';
 import SplashScreen from './components/SplashScreen';
 
 function App() {
-  const { user, isAdmin, userCd, loading, handleLogout } = useAuth();
+  const { user, isAdmin, userCd, loading, handleLogout } = useAuth(); // ← userCd adicionado
   const [tela, setTela] = useState('atribuicao');
   const [showSplash, setShowSplash] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -22,7 +22,8 @@ function App() {
 
   if (showSplash) return <SplashScreen onFinish={() => setShowSplash(false)} />;
 
-  if (loading) {
+  if (loading || userCd === null) {
+    // Aguarda tanto o auth quanto o CD do usuário carregar
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-center">
@@ -35,35 +36,31 @@ function App() {
 
   if (!user) return <Login onLoginSuccess={() => {}} />;
 
-  // Aguarda userCd carregar antes de renderizar (evita flash de tudo → filtrado)
-  if (userCd === null) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-green-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-slate-300 text-lg">Carregando perfil...</p>
-        </div>
-      </div>
-    );
-  }
-
   const renderTela = () => {
     switch (tela) {
       case 'admin':
         return isAdmin ? <AdminPanel /> : null;
+
       case 'historico':
-        return <Historico userCd={userCd} />;
+        return <Historico />;
+
       case 'funcionarios':
-        return <CadastroFuncionarios />;
+        return <CadastroFuncionarios userCd={userCd} />;
+
       case 'dashboard':
+        // Passa userCd → SectorAssignment filtra automaticamente
         return <SectorAssignment forcarDashboard={true} userCd={userCd} />;
+
       case 'ranking':
         return (
           <div className="p-6">
+            {/* Passa userCd → RankingFaltas filtra automaticamente */}
             <RankingFaltas filterCdExterno={userCd} />
           </div>
         );
+
       default:
+        // Passa userCd → SectorAssignment filtra automaticamente
         return <SectorAssignment userCd={userCd} />;
     }
   };
