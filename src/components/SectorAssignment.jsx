@@ -3,7 +3,7 @@ import { usePessoas } from '../hooks/usePessoas';
 import { useAutoScroll } from '../hooks/useAutoScroll';
 import { supabase } from '../lib/supabase';
 import React, { useState, useEffect, useCallback } from 'react';
-import { Calendar, Download, RotateCcw, ChevronDown, BarChart3, Search, AlertCircle, TrendingDown, Bell, UserX, Layers, Building2 } from 'lucide-react';
+import { Calendar, Download, RotateCcw, ChevronDown, BarChart3, Search, AlertCircle, TrendingDown, Bell, UserX, Layers, Building2, X } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import ModalSalvar from './ModalSalvar';
 import RankingFaltas from './RankingFaltas';
@@ -39,6 +39,7 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
   const [confirmarReset, setConfirmarReset]     = useState(false);
   const [dashboardAba, setDashboardAba]         = useState('metricas');
   const [colaboradorSelecionado, setColaboradorSelecionado] = useState(null);
+  const [abrirEmFalta, setAbrirEmFalta]                     = useState(false);
   const [loadingData, setLoadingData]           = useState(false);
   const [dataTemRegistro, setDataTemRegistro]   = useState(false);
 
@@ -53,7 +54,6 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
   const opsNorm = operacoes.filter(op => op !== OP_NET && op !== 'ANALISTA GERAL');
   const temNet  = operacoes.includes(OP_NET);
 
-  // Áreas NET ativas com base no CD filtrado
   const areasNet = [...new Set(
     initialPeople
       .filter(p => p.operacao === OP_NET && !p.em_recrutamento && !p.de_ferias && !p.em_licenca && (filterCd === 'todos' || p.cd === filterCd))
@@ -164,24 +164,58 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
     </div>
   );
 
-  const handleDragStart = (person, source) => setDraggedPerson({ person, source });
+  // ── Handlers ──
+  const handleDragStart = (e, person, source) => {
+    e.stopPropagation();
+    setDraggedPerson({ person, source });
+  };
   const handleDragOver  = (e, key) => { e.preventDefault(); setDragOver(key); };
   const handleDragLeave = () => setDragOver(null);
 
   const handleDrop = (target) => {
     if (!draggedPerson) return;
     const { person, source } = draggedPerson;
+    setDraggedPerson(null); setDragOver(null); stopAutoScroll();
+
+    // Arrastar para falta → remove do setor atual e abre modal igual ao clique
+    if (target === 'falta') {
+      setAssignments(prev => {
+        const next = { ...prev };
+        next[source] = (next[source] || []).filter(p => p.id !== person.id);
+        return next;
+      });
+      setAbrirEmFalta(true);
+      setColaboradorSelecionado(person);
+      return;
+    }
+
+    // Drop normal em setor
     setAssignments(prev => {
       const next = { ...prev };
-      next[source] = next[source].filter(p => p.id !== person.id);
+      next[source] = (next[source] || []).filter(p => p.id !== person.id);
       if (!next[target]) next[target] = [];
       next[target] = [...next[target], person];
       return next;
     });
-    setDraggedPerson(null); setDragOver(null); stopAutoScroll();
   };
 
   const handleClickColaborador = (person) => setColaboradorSelecionado(person);
+
+  // Devolve pessoa ao setor de origem (remove da falta)
+  const handleRemoverFalta = (person) => {
+    const origem = initialPeople.find(p => p.id === person.id);
+    if (!origem) return;
+    setAssignments(prev => {
+      const next = { ...prev };
+      next.falta = (next.falta || []).filter(p => p.id !== person.id);
+      const key = makeKey(origem.operacao, origem.setor);
+      if (!next[key]) next[key] = [];
+      if (!next[key].some(p => p.id === person.id)) next[key] = [...next[key], person];
+      return next;
+    });
+    setMotivosFalta(prev => { const n = { ...prev }; delete n[person.id]; return n; });
+    setJustificativas(prev => { const n = { ...prev }; delete n[person.id]; return n; });
+  };
 
   const handleMarcarFalta = (person, motivo, observacao) => {
     setAssignments(prev => {
@@ -261,8 +295,7 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
     Object.keys(assignments).forEach(key => {
       if (key !== 'falta' && assignments[key]) {
         const setor = key.includes('||') ? key.split('||')[1] : key;
-        assignments[key]
-          .filter(p => filterCd === 'todos' || p.cd === filterCd)
+        assignments[key].filter(p => filterCd === 'todos' || p.cd === filterCd)
           .forEach(p => wsA.addRow({ Data: today, Cd: p.cd || '', Operacao: p.operacao, Area: p.area || '', Setor: setor, Nome: p.name, Cargo: p.cargo }));
       }
     });
@@ -274,8 +307,7 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
         { header: 'Operação', key: 'Operacao', width: 20 }, { header: 'Área', key: 'Area', width: 20 },
         { header: 'Motivo', key: 'Motivo', width: 30 }, { header: 'Justificativa', key: 'Justificativa', width: 40 },
       ];
-      assignments.falta
-        .filter(p => filterCd === 'todos' || p.cd === filterCd)
+      assignments.falta.filter(p => filterCd === 'todos' || p.cd === filterCd)
         .forEach(p => wsF.addRow({ Data: today, Cd: p.cd || '', Nome: p.name, Cargo: p.cargo, Operacao: p.operacao, Area: p.area || '', Motivo: motivosFalta[p.id] || '', Justificativa: justificativas[p.id] || '' }));
     }
     const buffer = await workbook.xlsx.writeBuffer();
@@ -288,9 +320,8 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
 
   // ── Totais — sempre respeitam filterCd ──
   const initialPeopleCd   = filterCd === 'todos' ? initialPeople : initialPeople.filter(p => p.cd === filterCd);
-  const totalAtribuido    = Object.keys(assignments).filter(k => k !== 'falta').reduce((sum, k) => {
-    return sum + (assignments[k] || []).filter(p => filterCd === 'todos' || p.cd === filterCd).length;
-  }, 0);
+  const totalAtribuido    = Object.keys(assignments).filter(k => k !== 'falta')
+    .reduce((sum, k) => sum + (assignments[k] || []).filter(p => filterCd === 'todos' || p.cd === filterCd).length, 0);
   const pessoasSuporte    = initialPeopleCd.filter(p => p.operacao === OP_SUPORTE && !p.de_ferias && !p.em_licenca && !p.em_recrutamento);
   const setoresSuporte    = [...new Set(pessoasSuporte.map(p => p.setor))].sort();
   const pessoasEmFerias   = initialPeopleCd.filter(p => p.de_ferias);
@@ -308,9 +339,7 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
 
   // ── Helpers ──
   const setoresPorOperacao = (operacao) => {
-    const base = filterCd === 'todos'
-      ? initialPeople
-      : initialPeople.filter(p => p.cd === filterCd);
+    const base = filterCd === 'todos' ? initialPeople : initialPeople.filter(p => p.cd === filterCd);
     const setores = [...new Set(base.filter(p => p.operacao === operacao && p.setor !== 'Analista geral operação').map(p => p.setor))].sort();
     const idx = setores.indexOf('COMPARTILHADO');
     if (idx > -1) { setores.splice(idx, 1); setores.push('COMPARTILHADO'); }
@@ -318,9 +347,7 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
   };
 
   const setoresPorNetArea = (area) => {
-    const base = filterCd === 'todos'
-      ? initialPeople
-      : initialPeople.filter(p => p.cd === filterCd);
+    const base = filterCd === 'todos' ? initialPeople : initialPeople.filter(p => p.cd === filterCd);
     return [...new Set(base.filter(p => p.operacao === OP_NET && p.area === area && p.setor !== 'Analista geral operação').map(p => p.setor))].sort();
   };
 
@@ -373,28 +400,7 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
 
   const totalNetPessoas = areasNet.reduce((sum, area) => sum + contaPessoasNetArea(area), 0);
 
-  // ── Renderiza card de pessoa ──
-  const PessoaCard = ({ person, operacao, setor }) => {
-    const visitante = estaForaDaOrigem(person, operacao, setor);
-    const iniciais  = person.name.split(' ').slice(0, 2).map(n => n[0]).join('');
-    return (
-      <div draggable
-        onDragStart={() => handleDragStart(person, makeKey(operacao, setor))}
-        onClick={() => handleClickColaborador(person)}
-        className={`p-2 rounded-lg cursor-pointer hover:shadow-md active:opacity-50 transition-all text-xs flex items-center gap-2 ${visitante ? 'bg-amber-50 border border-amber-200 hover:border-amber-400' : 'bg-white border border-slate-200 hover:border-blue-400'}`}>
-        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${visitante ? 'bg-amber-400' : 'bg-blue-500'}`}>
-          {iniciais}
-        </div>
-        <div className="min-w-0">
-          <div className="font-semibold text-slate-800 truncate">{person.name}</div>
-          <div className="text-slate-400 truncate">{person.cargo}</div>
-          {visitante && <div className="text-amber-500 font-medium">↪ remanejado</div>}
-        </div>
-      </div>
-    );
-  };
-
-  // ── Renderiza grade de setores ──
+  // ── Renderiza grade de setores (inline, sem componente filho) ──
   const renderSetores = (operacao, pessoas_fn, setores_fn, area = null) => (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
       {setores_fn(area || operacao).map(setor => {
@@ -412,7 +418,28 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
             <h3 className="font-bold text-slate-500 mb-1 pb-1.5 border-b border-slate-200 text-xs line-clamp-2">{setor}</h3>
             <span className="text-xs text-blue-500 font-semibold">({filtered.length})</span>
             <div className="space-y-1.5 mt-2">
-              {filtered.map(person => <PessoaCard key={person.id} person={person} operacao={operacao} setor={setor} />)}
+              {filtered.map(person => {
+                const visitante = estaForaDaOrigem(person, operacao, setor);
+                const iniciais  = person.name.split(' ').slice(0, 2).map(n => n[0]).join('');
+                return (
+                  <div key={person.id}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, person, makeKey(operacao, setor))}
+                    onDragEnd={() => setDraggedPerson(null)}
+                    onClick={() => handleClickColaborador(person)}
+                    className={`p-2 rounded-lg cursor-grab active:cursor-grabbing hover:shadow-md transition-all text-xs flex items-center gap-2 select-none ${visitante ? 'bg-amber-50 border border-amber-200 hover:border-amber-400' : 'bg-white border border-slate-200 hover:border-blue-400'}`}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${visitante ? 'bg-amber-400' : 'bg-blue-500'}`}>
+                      {iniciais}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-semibold text-slate-800 truncate">{person.name}</div>
+                      <div className="text-slate-400 truncate">{person.cargo}</div>
+                      {person.cd && filterCd === 'todos' && <div className="text-slate-300 truncate text-xs">{person.cd}</div>}
+                      {visitante && <div className="text-amber-500 font-medium">↪ remanejado</div>}
+                    </div>
+                  </div>
+                );
+              })}
               {ghosts.map(person => (
                 <div key={`ghost-${person.id}`} className="bg-white p-2 rounded-lg border border-dashed border-slate-200 text-xs opacity-40 select-none flex items-center gap-2">
                   <div className="w-6 h-6 rounded-full bg-slate-300 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
@@ -438,9 +465,9 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
     </div>
   );
 
-  // ── Operação normal card ──
-  const OperacaoCard = ({ operacao }) => (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+  // ── Bloco de operação normal (inline, sem componente filho) ──
+  const renderOperacaoBlock = (operacao) => (
+    <div key={operacao} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <button onClick={() => setExpandedOps(prev => ({ ...prev, [operacao]: !prev[operacao] }))}
         className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-slate-50 transition border-l-4 border-blue-500">
         <div className="flex items-center gap-3">
@@ -452,6 +479,85 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
       {expandedOps[operacao] && (
         <div className="border-t border-slate-100 p-4">
           {renderSetores(operacao, pessoasNoSetor, setoresPorOperacao)}
+        </div>
+      )}
+    </div>
+  );
+
+  // ── Resumo Geral (reutilizado no dashboard e na view principal) ──
+  const ResumoGeral = () => (
+    <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-100">
+      <div className="flex items-center justify-between mb-5">
+        <h2 className="font-bold text-slate-700 text-sm">
+          Resumo Geral {filterCd !== 'todos' && <span className="text-blue-600 ml-1">— {filterCd}</span>}
+        </h2>
+        {/* Filtro por CD no dashboard — abas compactas */}
+        {cds.length > 1 && !cdBloqueado && (
+          <div className="flex items-center gap-1 flex-wrap justify-end">
+            <button onClick={() => setFilterCd('todos')}
+              className={`px-3 py-1 rounded-full text-xs font-semibold transition ${filterCd === 'todos' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+              Todos
+            </button>
+            {cds.map(cd => (
+              <button key={cd} onClick={() => setFilterCd(cd)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition ${filterCd === cd ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                {cd}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-3">
+        <div className="bg-blue-50 rounded-xl p-4 text-center"><div className="text-2xl font-bold text-blue-600">{totalGeral}</div><div className="text-xs text-slate-500 mt-1">Total</div></div>
+        <div className="bg-green-50 rounded-xl p-4 text-center"><div className="text-2xl font-bold text-green-600">{totalAtribuido}</div><div className="text-xs text-slate-500 mt-1">Presentes</div></div>
+        <div className="bg-red-50 rounded-xl p-4 text-center"><div className="text-2xl font-bold text-red-600">{faltasFiltradas.length}</div><div className="text-xs text-slate-500 mt-1">Faltas</div></div>
+        <div className="bg-orange-50 rounded-xl p-4 text-center"><div className="text-2xl font-bold text-orange-500">{pessoasEmFerias.length}</div><div className="text-xs text-slate-500 mt-1">Férias</div></div>
+        <div className="bg-purple-50 rounded-xl p-4 text-center"><div className="text-2xl font-bold text-purple-500">{pessoasEmLicenca.length}</div><div className="text-xs text-slate-500 mt-1">Licença</div></div>
+        <div className="bg-rose-50 rounded-xl p-4 text-center"><div className="text-2xl font-bold text-rose-600">{absenteismoPct}%</div><div className="text-xs text-slate-500 mt-1">Absenteísmo</div></div>
+      </div>
+
+      <div className="border-t border-dashed border-slate-200 pt-3">
+        <p className="text-xs text-slate-400 mb-2 italic">Não contam no absenteísmo:</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-teal-50 border border-dashed border-teal-200 rounded-xl p-4 text-center relative">
+            <div className="text-2xl font-bold text-teal-600">{totalSuporte}</div>
+            <div className="text-xs text-slate-500 mt-1">Suporte</div>
+            <span className="absolute top-2 right-2 text-xs bg-teal-100 text-teal-600 px-1.5 py-0.5 rounded-full">🛠</span>
+          </div>
+          <div className="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-4 text-center relative">
+            <div className="text-2xl font-bold text-slate-500">{totalRecrutamento}</div>
+            <div className="text-xs text-slate-500 mt-1">Recrutamento</div>
+            <span className="absolute top-2 right-2 text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">🔍</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Lista de faltas com botão remover */}
+      {faltasFiltradas.length > 0 && (
+        <div className="border-t border-slate-100 mt-4 pt-4">
+          <h3 className="text-xs font-bold text-slate-600 mb-3 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-red-500 inline-block"></span>
+            Faltas do dia — clique × para desfazer
+          </h3>
+          <div className="space-y-1.5 max-h-48 overflow-y-auto">
+            {faltasFiltradas.map(person => (
+              <div key={person.id} className="flex items-center gap-2 p-2 bg-red-50 rounded-lg border border-red-100 text-xs">
+                <div className="w-6 h-6 rounded-full bg-red-400 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                  {person.name.split(' ').slice(0, 2).map(n => n[0]).join('')}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-red-800 truncate">{person.name}</div>
+                  <div className="text-red-400 truncate">{person.operacao}</div>
+                </div>
+                <button onClick={() => handleRemoverFalta(person)}
+                  title="Desfazer falta — devolver ao setor de origem"
+                  className="w-5 h-5 rounded-full bg-red-200 hover:bg-red-400 hover:text-white flex items-center justify-center text-red-700 flex-shrink-0 transition font-bold text-xs">
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -472,6 +578,7 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
             </div>
             <button onClick={() => setViewMode('atribuir')} className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition text-sm font-medium shadow-sm">← Voltar</button>
           </div>
+
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm mb-6">
             <div className="flex border-b border-slate-100 overflow-x-auto">
               {[
@@ -486,36 +593,8 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
               ))}
             </div>
           </div>
-          {dashboardAba === 'metricas' && (
-            <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-100">
-              <h2 className="font-bold text-slate-700 mb-5 text-sm">
-                Resumo Geral {filterCd !== 'todos' && <span className="text-blue-600">— {filterCd}</span>}
-              </h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-3">
-                <div className="bg-blue-50 rounded-xl p-4 text-center"><div className="text-2xl font-bold text-blue-600">{totalGeral}</div><div className="text-xs text-slate-500 mt-1">Total</div></div>
-                <div className="bg-green-50 rounded-xl p-4 text-center"><div className="text-2xl font-bold text-green-600">{totalAtribuido}</div><div className="text-xs text-slate-500 mt-1">Presentes</div></div>
-                <div className="bg-red-50 rounded-xl p-4 text-center"><div className="text-2xl font-bold text-red-600">{faltasFiltradas.length}</div><div className="text-xs text-slate-500 mt-1">Faltas</div></div>
-                <div className="bg-orange-50 rounded-xl p-4 text-center"><div className="text-2xl font-bold text-orange-500">{pessoasEmFerias.length}</div><div className="text-xs text-slate-500 mt-1">Férias</div></div>
-                <div className="bg-purple-50 rounded-xl p-4 text-center"><div className="text-2xl font-bold text-purple-500">{pessoasEmLicenca.length}</div><div className="text-xs text-slate-500 mt-1">Licença</div></div>
-                <div className="bg-rose-50 rounded-xl p-4 text-center"><div className="text-2xl font-bold text-rose-600">{absenteismoPct}%</div><div className="text-xs text-slate-500 mt-1">Absenteísmo</div></div>
-              </div>
-              <div className="border-t border-dashed border-slate-200 pt-3">
-                <p className="text-xs text-slate-400 mb-2 italic">Não contam no absenteísmo:</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-teal-50 border border-dashed border-teal-200 rounded-xl p-4 text-center relative">
-                    <div className="text-2xl font-bold text-teal-600">{totalSuporte}</div>
-                    <div className="text-xs text-slate-500 mt-1">Suporte</div>
-                    <span className="absolute top-2 right-2 text-xs bg-teal-100 text-teal-600 px-1.5 py-0.5 rounded-full">🛠</span>
-                  </div>
-                  <div className="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-4 text-center relative">
-                    <div className="text-2xl font-bold text-slate-500">{totalRecrutamento}</div>
-                    <div className="text-xs text-slate-500 mt-1">Recrutamento</div>
-                    <span className="absolute top-2 right-2 text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">🔍</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+
+          {dashboardAba === 'metricas' && <ResumoGeral />}
           {dashboardAba === 'absenteismo' && <DashboardAbsenteismo initialPeople={initialPeople} operacoes={operacoes} cds={cds} filterCdExterno={filterCd} />}
           {dashboardAba === 'ranking'     && <RankingFaltas filterCdExterno={filterCd} />}
         </div>
@@ -552,51 +631,30 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
         </div>
       </div>
 
-      {/* ── Abas de CD — só para admin (cds.length > 1 e não bloqueado) ── */}
+      {/* Abas de CD — só para admin */}
       {cds.length > 1 && !cdBloqueado && (
         <div className="bg-white border-b border-slate-200 px-6">
           <div className="flex items-center gap-1 overflow-x-auto">
-            {/* Aba "Todos" */}
-            <button
-              onClick={() => setFilterCd('todos')}
-              className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition whitespace-nowrap ${
-                filterCd === 'todos'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-slate-400 hover:text-slate-700'
-              }`}>
+            <button onClick={() => setFilterCd('todos')}
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition whitespace-nowrap ${filterCd === 'todos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-700'}`}>
               <Building2 className="w-4 h-4" />
               Todos os CDs
               <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${filterCd === 'todos' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
                 {initialPeople.filter(p => !p.em_recrutamento).length}
               </span>
             </button>
-
-            {/* Separador */}
             <div className="w-px h-6 bg-slate-200 mx-1" />
-
-            {/* Uma aba por CD */}
             {cds.map(cd => {
-              const totalCd    = initialPeople.filter(p => p.cd === cd && !p.em_recrutamento).length;
-              const faltasCd   = (assignments.falta || []).filter(p => p.cd === cd && !isSuporte(p)).length;
-              const isActive   = filterCd === cd;
+              const totalCd  = initialPeople.filter(p => p.cd === cd && !p.em_recrutamento).length;
+              const faltasCd = (assignments.falta || []).filter(p => p.cd === cd && !isSuporte(p)).length;
+              const isActive = filterCd === cd;
               return (
-                <button key={cd}
-                  onClick={() => setFilterCd(cd)}
-                  className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition whitespace-nowrap ${
-                    isActive
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-slate-400 hover:text-slate-700'
-                  }`}>
+                <button key={cd} onClick={() => setFilterCd(cd)}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition whitespace-nowrap ${isActive ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-700'}`}>
                   <Building2 className="w-4 h-4" />
                   {cd}
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${isActive ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
-                    {totalCd}
-                  </span>
-                  {faltasCd > 0 && (
-                    <span className="text-xs px-1.5 py-0.5 rounded-full font-bold bg-red-100 text-red-600">
-                      {faltasCd} falta{faltasCd > 1 ? 's' : ''}
-                    </span>
-                  )}
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${isActive ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>{totalCd}</span>
+                  {faltasCd > 0 && <span className="text-xs px-1.5 py-0.5 rounded-full font-bold bg-red-100 text-red-600">{faltasCd} falta{faltasCd > 1 ? 's' : ''}</span>}
                 </button>
               );
             })}
@@ -614,7 +672,7 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
       )}
 
       <div className="p-6">
-        {/* Cards resumo — sempre refletem o CD ativo */}
+        {/* Cards resumo */}
         <div className="grid grid-cols-4 gap-4 mb-5">
           {[
             { label: 'Presentes',    value: totalAtribuido,         sub: 'colaboradores', icon: '👥', color: 'text-green-600',  bg: 'bg-green-50',  border: 'border-green-100'  },
@@ -633,7 +691,7 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
           ))}
         </div>
 
-        {/* Filtros de busca + operação */}
+        {/* Filtros */}
         <div className="bg-white rounded-xl border border-slate-200 p-3 mb-4 shadow-sm">
           <div className="flex gap-3 flex-wrap">
             <div className="flex-1 relative min-w-48">
@@ -655,13 +713,10 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
 
         <div className="flex gap-4 items-start">
           <div className="flex-1 min-w-0 space-y-3">
-
             {/* Operações normais */}
-            {opsNorm
-              .filter(op => filterOperacao === 'todas' || op === filterOperacao)
-              .map(op => <OperacaoCard key={op} operacao={op} />)}
+            {opsNorm.filter(op => filterOperacao === 'todas' || op === filterOperacao).map(op => renderOperacaoBlock(op))}
 
-            {/* Bloco NET com sub-seções por ÁREA */}
+            {/* Bloco NET */}
             {temNet && (filterOperacao === 'todas' || filterOperacao === OP_NET) && (
               <div className="bg-white rounded-xl border-2 border-blue-200 shadow-sm overflow-hidden">
                 <button onClick={() => setExpandedNetGroup(v => !v)}
@@ -674,7 +729,6 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
                     <span className="text-xs text-blue-400">{areasNet.length} áreas</span>
                   </div>
                 </button>
-
                 {expandedNetGroup && (
                   <div className="divide-y divide-blue-100">
                     {areasNet.map((area) => {
@@ -682,8 +736,7 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
                       const nPessoas = contaPessoasNetArea(area);
                       return (
                         <div key={area}>
-                          <button
-                            onClick={() => setExpandedNetAreas(prev => ({ ...prev, [area]: !prev[area] }))}
+                          <button onClick={() => setExpandedNetAreas(prev => ({ ...prev, [area]: !prev[area] }))}
                             className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 transition border-l-4 ${cor.border}`}>
                             <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform flex-shrink-0 ${expandedNetAreas[area] ? '' : '-rotate-90'}`} />
                             <span className={`font-bold text-sm ${cor.label}`}>{area}</span>
@@ -759,6 +812,7 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
 
           {/* Painel direito */}
           <div className="w-64 flex-shrink-0 flex flex-col gap-3 sticky top-6">
+            {/* Alertas */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -786,15 +840,26 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
                       </div>
                     )}
                     {filteredPeople(assignments.falta || []).map(person => (
-                      <div key={person.id} draggable onDragStart={() => handleDragStart(person, 'falta')} onClick={() => handleClickColaborador(person)}
-                        className="bg-red-50 border border-red-100 p-2 rounded-lg cursor-pointer hover:shadow-sm transition text-xs flex items-center gap-2">
+                      <div key={person.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, person, 'falta')}
+                        onDragEnd={() => setDraggedPerson(null)}
+                        onClick={() => handleClickColaborador(person)}
+                        className="bg-red-50 border border-red-100 p-2 rounded-lg cursor-grab active:cursor-grabbing hover:shadow-sm transition text-xs flex items-center gap-2 select-none">
                         <div className="w-6 h-6 rounded-full bg-red-400 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                           {person.name.split(' ').slice(0, 2).map(n => n[0]).join('')}
                         </div>
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <div className="font-semibold text-red-800 truncate">{person.name}</div>
                           <div className="text-red-400 truncate">{person.cargo}</div>
                         </div>
+                        {/* Botão remover falta */}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleRemoverFalta(person); }}
+                          title="Desfazer falta"
+                          className="w-5 h-5 rounded-full bg-red-200 hover:bg-red-500 hover:text-white flex items-center justify-center text-red-600 flex-shrink-0 transition font-bold text-xs">
+                          ×
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -802,6 +867,7 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
               </div>
             </div>
 
+            {/* Férias */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
                 <div className="flex items-center gap-2"><span>🏖️</span><span className="font-bold text-slate-700 text-sm">Férias</span></div>
@@ -823,6 +889,7 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
               </div>
             </div>
 
+            {/* Licença */}
             {pessoasEmLicenca.length > 0 && (
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
@@ -845,6 +912,7 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
               </div>
             )}
 
+            {/* Recrutamento */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
                 <div className="flex items-center gap-2"><span>🔍</span><span className="font-bold text-slate-700 text-sm">Recrutamento</span></div>
@@ -882,12 +950,20 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
       <ModalColaborador
         person={colaboradorSelecionado}
         isOpen={!!colaboradorSelecionado}
-        onClose={() => setColaboradorSelecionado(null)}
+        onClose={() => {
+          // Se veio do drag e fechou sem confirmar → devolve ao setor de origem
+          if (abrirEmFalta && colaboradorSelecionado) {
+            handleRemoverFalta(colaboradorSelecionado);
+          }
+          setColaboradorSelecionado(null);
+          setAbrirEmFalta(false);
+        }}
         onMarcarFalta={handleMarcarFalta}
         onMover={handleMoverColaborador}
         onLicenca={handleLicenca}
         setoresPorOperacao={setoresPorOperacao}
         operacoes={operacoes}
+        abrirEmFalta={abrirEmFalta}
       />
 
       <ModalSalvar
