@@ -10,7 +10,7 @@ import Sidebar from './components/Sidebar';
 import SplashScreen from './components/SplashScreen';
 
 function App() {
-  const { user, isAdmin, userCd, loading, handleLogout } = useAuth(); // ← userCd adicionado
+  const { user, isAdmin, userCd, loading, handleLogout } = useAuth();
   const [tela, setTela] = useState('atribuicao');
   const [showSplash, setShowSplash] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -22,8 +22,7 @@ function App() {
 
   if (showSplash) return <SplashScreen onFinish={() => setShowSplash(false)} />;
 
-  if (loading || userCd === null) {
-    // Aguarda tanto o auth quanto o CD do usuário carregar
+  if (loading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-center">
@@ -36,32 +35,27 @@ function App() {
 
   if (!user) return <Login onLoginSuccess={() => {}} />;
 
+  // userCd pode ser null enquanto carrega — usa 'todos' como fallback seguro
+  const cdAtivo = userCd ?? 'todos';
+
   const renderTela = () => {
     switch (tela) {
       case 'admin':
         return isAdmin ? <AdminPanel /> : null;
-
       case 'historico':
-        return <Historico />;
-
+        return <Historico userCd={cdAtivo} />;
       case 'funcionarios':
-        return <CadastroFuncionarios userCd={userCd} />;
-
+        return <CadastroFuncionarios userCd={cdAtivo} />;
       case 'dashboard':
-        // Passa userCd → SectorAssignment filtra automaticamente
-        return <SectorAssignment forcarDashboard={true} userCd={userCd} />;
-
+        return <SectorAssignment forcarDashboard={true} userCd={cdAtivo} />;
       case 'ranking':
         return (
           <div className="p-6">
-            {/* Passa userCd → RankingFaltas filtra automaticamente */}
-            <RankingFaltas filterCdExterno={userCd} />
+            <RankingFaltas filterCdExterno={cdAtivo} />
           </div>
         );
-
       default:
-        // Passa userCd → SectorAssignment filtra automaticamente
-        return <SectorAssignment userCd={userCd} />;
+        return <SectorAssignment userCd={cdAtivo} />;
     }
   };
 
