@@ -51,8 +51,16 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
   useEffect(() => { setFilterOperacao('todas'); }, [filterCd]);
 
   const makeKey = (op, st) => `${op}||${st}`;
-  const opsNorm = operacoes.filter(op => op !== OP_NET && op !== 'ANALISTA GERAL');
-  const temNet  = operacoes.includes(OP_NET);
+
+  // Operações filtradas pelo CD ativo
+  const operacoesFiltradas = filterCd === 'todos'
+    ? operacoes
+    : [...new Set(initialPeople.filter(p => p.cd === filterCd).map(p => p.operacao))]
+        .filter(op => op !== 'ANALISTA GERAL' && op !== OP_SUPORTE)
+        .sort();
+
+  const opsNorm = operacoesFiltradas.filter(op => op !== OP_NET && op !== 'ANALISTA GERAL');
+  const temNet  = operacoesFiltradas.includes(OP_NET);
 
   const areasNet = [...new Set(
     initialPeople
@@ -994,4 +1002,4 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
   );
 };
 
-export default SectorAssignment;
+export default SectorAssignment;""
