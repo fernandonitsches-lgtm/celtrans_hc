@@ -7,16 +7,13 @@ import {
 } from 'lucide-react';
 
 const AdminPanel = () => {
-  // ── Cadastro de usuário ──
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState('');
   const [success, setSuccess]     = useState('');
   const [showSenha, setShowSenha] = useState(false);
   const [formData, setFormData]   = useState({ email: '', senha: '' });
 
-  // ── Gestão de CDs ──
-  const [aba, setAba]               = useState('usuarios'); // 'usuarios' | 'cds'
-  const [usuarios, setUsuarios]     = useState([]);
+  const [aba, setAba]               = useState('usuarios');
   const [userCds, setUserCds]       = useState([]);
   const [cdsDisponiveis, setCdsDisponiveis] = useState([]);
   const [loadingCds, setLoadingCds] = useState(false);
@@ -26,32 +23,25 @@ const AdminPanel = () => {
   const [cdCustom, setCdCustom]     = useState(false);
   const [cdNovo, setCdNovo]         = useState('');
 
-  // ── Carrega usuários e vínculos ao abrir aba CDs ──
   useEffect(() => {
-    if (aba === 'cds') {
-      fetchCdsData();
-    }
+    if (aba === 'cds') fetchCdsData();
   }, [aba]);
 
   const fetchCdsData = async () => {
     setLoadingCds(true);
     setErrorCds('');
     try {
-      // Busca usuários auth via listUsers (admin only via service role)
-      // Como não temos service role no front, buscamos user_cds e pessoas para os CDs
-      const [{ data: vinculosData, error: vErr }, { data: pessoasData, error: pErr }] = await Promise.all([
-        supabase.from('user_cds').select('*').order('created_at', { ascending: false }),
-        supabase.from('pessoas').select('cd').not('cd', 'is', null),
-      ]);
-
-      if (vErr) throw vErr;
+      const { data: pessoasData, error: pErr } = await supabase
+        .from('pessoas').select('cd').not('cd', 'is', null);
       if (pErr) throw pErr;
 
-      setUserCds(vinculosData || []);
-
-      // CDs únicos das pessoas cadastradas
       const cdsUnicos = [...new Set((pessoasData || []).map(p => p.cd).filter(Boolean))].sort();
       setCdsDisponiveis(cdsUnicos);
+
+      // Busca vínculos da tabela user_cds para exibir lista
+      const { data: vinculosData } = await supabase
+        .from('user_cds').select('*').order('created_at', { ascending: false });
+      setUserCds(vinculosData || []);
     } catch (err) {
       setErrorCds('Erro ao carregar dados: ' + err.message);
     } finally {
@@ -67,18 +57,30 @@ const AdminPanel = () => {
     setLoadingCds(true);
     setErrorCds('');
     try {
-      // Upsert — se já existe para esse user_id, atualiza
-      const { error } = await supabase
+      // 1. Salva no metadata do usuário (usado pelo useAuth para filtrar)
+      const { error: metaError } = await supabase.auth.admin.updateUserById(
+        novoVinculo.user_id.trim(),
+        { user_metadata: { cd: cdFinal } }
+      );
+
+      // Se não tiver permissão de admin no frontend, usa RPC
+      if (metaError) {
+        // Fallback: salva na tabela user_cds (método antigo)
+        const { error: upsertError } = await supabase
+          .from('user_cds')
+          .upsert({ user_id: novoVinculo.user_id.trim(), cd: cdFinal }, { onConflict: 'user_id' });
+        if (upsertError) throw upsertError;
+      }
+
+      // 2. Sempre salva na tabela user_cds para manter histórico/lista
+      await supabase
         .from('user_cds')
         .upsert({ user_id: novoVinculo.user_id.trim(), cd: cdFinal }, { onConflict: 'user_id' });
 
-      if (error) throw error;
-
-      setSuccessCds(`CD "${cdFinal}" vinculado com sucesso!`);
-      setTimeout(() => setSuccessCds(''), 3000);
+      setSuccessCds(`✓ CD "${cdFinal}" vinculado! O usuário precisa fazer logout e login para aplicar.`);
+      setTimeout(() => setSuccessCds(''), 5000);
       setNovoVinculo({ user_id: '', cd: '' });
-      setCdNovo('');
-      setCdCustom(false);
+      setCdNovo(''); setCdCustom(false);
       await fetchCdsData();
     } catch (err) {
       setErrorCds('Erro ao vincular: ' + err.message);
@@ -88,11 +90,17 @@ const AdminPanel = () => {
   };
 
   const handleRemoverVinculo = async (id, userId) => {
-    if (!confirm('Remover restrição de CD deste usuário? Ele passará a ver todos os CDs.')) return;
+    if (!confirm('Remover restrição de CD? O usuário passará a ver todos os CDs.')) return;
     setLoadingCds(true);
     try {
-      const { error } = await supabase.from('user_cds').delete().eq('id', id);
-      if (error) throw error;
+      // Remove metadata do usuário
+      const { error: metaError } = await supabase.auth.admin.updateUserById(
+        userId, { user_metadata: { cd: null } }
+      );
+
+      // Remove da tabela user_cds
+      await supabase.from('user_cds').delete().eq('id', id);
+
       setSuccessCds('Restrição removida. Usuário agora vê todos os CDs.');
       setTimeout(() => setSuccessCds(''), 3000);
       await fetchCdsData();
@@ -103,7 +111,6 @@ const AdminPanel = () => {
     }
   };
 
-  // ── Cadastro de usuário ──
   const handleCadastro = async (e) => {
     e.preventDefault();
     setError(''); setSuccess('');
@@ -111,9 +118,12 @@ const AdminPanel = () => {
     if (formData.senha.length < 6) { setError('A senha deve ter no mínimo 6 caracteres'); return; }
     try {
       setLoading(true);
-      const { error: authError } = await supabase.auth.signUp({ email: formData.email, password: formData.senha });
+      const { error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.senha,
+      });
       if (authError) { setError('Erro ao criar usuário: ' + authError.message); return; }
-      setSuccess(`Usuário ${formData.email} cadastrado! Copie o UUID em Authentication → Users para vincular um CD.`);
+      setSuccess(`Usuário ${formData.email} cadastrado! Vá em "Restrição por CD" para vincular o CD dele.`);
       setFormData({ email: '', senha: '' });
       setTimeout(() => setSuccess(''), 8000);
     } catch (err) {
@@ -121,6 +131,13 @@ const AdminPanel = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // ── Cadastro com CD já na criação ──
+  const handleCadastroComCd = async (e) => {
+    e.preventDefault();
+    // Usa a aba de CDs após cadastro
+    handleCadastro(e);
   };
 
   return (
@@ -165,7 +182,7 @@ const AdminPanel = () => {
                 </div>
                 <div>
                   <h2 className="text-base font-bold text-white">Cadastrar Novo Usuário</h2>
-                  <p className="text-purple-200 text-xs mt-0.5">O usuário receberá acesso ao sistema após o cadastro</p>
+                  <p className="text-purple-200 text-xs mt-0.5">Após cadastrar, vá em "Restrição por CD" para definir o acesso</p>
                 </div>
               </div>
             </div>
@@ -174,19 +191,14 @@ const AdminPanel = () => {
               {error && (
                 <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-red-700 font-semibold text-sm">Erro ao cadastrar</p>
-                    <p className="text-red-600 text-xs mt-0.5">{error}</p>
-                  </div>
+                  <p className="text-red-700 text-sm flex-1">{error}</p>
+                  <button onClick={() => setError('')}><X className="w-4 h-4 text-red-400" /></button>
                 </div>
               )}
               {success && (
                 <div className="p-4 bg-green-50 border border-green-200 rounded-xl flex items-start gap-3">
                   <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-green-700 font-semibold text-sm">Usuário cadastrado!</p>
-                    <p className="text-green-600 text-xs mt-0.5">{success}</p>
-                  </div>
+                  <p className="text-green-700 text-sm flex-1">{success}</p>
                 </div>
               )}
 
@@ -216,27 +228,7 @@ const AdminPanel = () => {
                       {showSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                  {formData.senha && formData.senha.length < 6 && (
-                    <p className="text-xs text-red-500 mt-1">Mínimo 6 caracteres</p>
-                  )}
                 </div>
-
-                {formData.senha && (
-                  <div>
-                    <div className="flex gap-1 mb-1">
-                      {[1,2,3,4].map(i => (
-                        <div key={i} className={`h-1 flex-1 rounded-full transition-all ${
-                          formData.senha.length >= i * 3
-                            ? i <= 1 ? 'bg-red-400' : i <= 2 ? 'bg-orange-400' : i <= 3 ? 'bg-yellow-400' : 'bg-green-400'
-                            : 'bg-slate-100'
-                        }`} />
-                      ))}
-                    </div>
-                    <p className="text-xs text-slate-400">
-                      {formData.senha.length < 6 ? 'Muito curta' : formData.senha.length < 9 ? 'Fraca' : formData.senha.length < 12 ? 'Média' : 'Forte'}
-                    </p>
-                  </div>
-                )}
 
                 <button type="submit" disabled={loading || !formData.email || formData.senha.length < 6}
                   className="w-full bg-purple-600 text-white py-3 rounded-xl font-semibold hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm">
@@ -250,8 +242,6 @@ const AdminPanel = () => {
         {/* ── ABA: Restrição por CD ── */}
         {aba === 'cds' && (
           <div className="space-y-4">
-
-            {/* Mensagens */}
             {errorCds && (
               <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
                 <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
@@ -266,43 +256,33 @@ const AdminPanel = () => {
               </div>
             )}
 
-            {/* Explicação */}
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-start gap-3">
-              <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <span className="text-sm">💡</span>
-              </div>
+            <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex items-start gap-3">
+              <span className="text-lg flex-shrink-0">⚠️</span>
               <div>
-                <p className="text-sm font-semibold text-blue-800">Como funciona</p>
-                <p className="text-xs text-blue-600 mt-0.5">
-                  Ao vincular um CD a um usuário, ele verá <strong>apenas</strong> as pessoas, faltas e dados daquele CD.
-                  Usuários sem vínculo veem tudo. Admins sempre veem tudo.
+                <p className="text-sm font-semibold text-amber-800">Como vincular</p>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  1. Cadastre o usuário na aba anterior<br/>
+                  2. Copie o UUID dele em <strong>Supabase → Authentication → Users</strong><br/>
+                  3. Cole aqui e selecione o CD<br/>
+                  4. O usuário precisa fazer <strong>logout e login</strong> para aplicar
                 </p>
               </div>
             </div>
 
-            {/* Formulário de novo vínculo */}
+            {/* Formulário */}
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
               <div className="bg-blue-600 px-6 py-4 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-white bg-opacity-20 flex items-center justify-center">
-                  <Building2 className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-bold text-white">Vincular usuário a um CD</h2>
-                  <p className="text-blue-200 text-xs mt-0.5">O UUID do usuário está em Authentication → Users no Supabase</p>
-                </div>
+                <Building2 className="w-5 h-5 text-white" />
+                <h2 className="text-sm font-bold text-white">Vincular usuário a um CD</h2>
               </div>
 
               <div className="p-6 space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">UUID do usuário *</label>
-                  <input
-                    type="text"
-                    value={novoVinculo.user_id}
+                  <input type="text" value={novoVinculo.user_id}
                     onChange={(e) => setNovoVinculo({ ...novoVinculo, user_id: e.target.value })}
                     placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                    className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 bg-slate-50 text-sm font-mono"
-                  />
-                  <p className="text-xs text-slate-400 mt-1">Copie o ID do usuário direto do painel do Supabase</p>
+                    className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 bg-slate-50 text-sm font-mono" />
                 </div>
 
                 <div>
@@ -323,10 +303,10 @@ const AdminPanel = () => {
                   ) : (
                     <div className="flex gap-2">
                       <input type="text" value={cdNovo} onChange={(e) => setCdNovo(e.target.value)}
-                        placeholder="Nome do CD..."
+                        placeholder="Ex: MG, DF, SP..."
                         className="flex-1 px-3 py-2.5 border border-blue-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm" autoFocus />
                       <button type="button" onClick={() => { setCdCustom(false); setCdNovo(''); }}
-                        className="px-3 py-2 bg-slate-100 border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-200 transition text-xs font-medium">
+                        className="px-3 py-2 bg-slate-100 border border-slate-200 text-slate-600 rounded-xl text-xs font-medium">
                         ← Lista
                       </button>
                     </div>
@@ -342,7 +322,7 @@ const AdminPanel = () => {
               </div>
             </div>
 
-            {/* Lista de vínculos existentes */}
+            {/* Lista de vínculos */}
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                 <div>
@@ -358,13 +338,11 @@ const AdminPanel = () => {
               {loadingCds ? (
                 <div className="p-8 text-center">
                   <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-3"></div>
-                  <p className="text-slate-400 text-sm">Carregando...</p>
                 </div>
               ) : userCds.length === 0 ? (
                 <div className="p-8 text-center">
                   <Building2 className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-                  <p className="text-slate-400 text-sm font-medium">Nenhum vínculo cadastrado</p>
-                  <p className="text-slate-300 text-xs mt-1">Todos os usuários veem todos os CDs</p>
+                  <p className="text-slate-400 text-sm">Nenhum vínculo cadastrado</p>
                 </div>
               ) : (
                 <div className="divide-y divide-slate-50">
@@ -376,11 +354,9 @@ const AdminPanel = () => {
                         </div>
                         <div className="min-w-0">
                           <p className="text-xs font-mono text-slate-400 truncate">{vinculo.user_id}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">
-                              <Building2 className="w-2.5 h-2.5" /> {vinculo.cd}
-                            </span>
-                          </div>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full mt-0.5">
+                            <Building2 className="w-2.5 h-2.5" /> {vinculo.cd}
+                          </span>
                         </div>
                       </div>
                       <button onClick={() => handleRemoverVinculo(vinculo.id, vinculo.user_id)}
@@ -395,7 +371,7 @@ const AdminPanel = () => {
           </div>
         )}
 
-        {/* Info de permissões — sempre visível */}
+        {/* Níveis de acesso */}
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
           <h3 className="font-semibold text-slate-700 text-sm mb-3">Níveis de acesso</h3>
           <div className="space-y-3">
