@@ -12,6 +12,7 @@ export const useAuth = () => {
   const iniciarTimeout = () => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
+      console.log('[useAuth] timeout disparou — forçando userCd=todos');
       setUserCd(prev => (prev === null ? 'todos' : prev));
       setLoading(false);
     }, 6000);
@@ -19,62 +20,51 @@ export const useAuth = () => {
 
   const fetchUserCd = async (currentUser) => {
     if (!currentUser) { setUserCd('todos'); return; }
-
-    if (ADMIN_EMAILS.includes(currentUser.email)) {
-      setUserCd('todos');
-      return;
-    }
+    if (ADMIN_EMAILS.includes(currentUser.email)) { setUserCd('todos'); return; }
 
     try {
+      console.log('[useAuth] buscando CD para:', currentUser.email);
       const { data, error } = await supabase
         .from('user_cds')
         .select('cd')
         .eq('user_id', currentUser.id)
         .limit(1);
 
-      console.log('[useAuth] fetchUserCd:', { id: currentUser.id, email: currentUser.email, data, error });
+      console.log('[useAuth] resultado user_cds:', { data, error });
 
       if (error) {
-        console.error('[useAuth] Erro ao buscar CD:', error.message);
+        console.error('[useAuth] erro RLS user_cds:', error.message);
         setUserCd('todos');
       } else {
         setUserCd(data?.[0]?.cd ?? 'todos');
       }
     } catch (err) {
-      console.error('[useAuth] Erro inesperado:', err);
+      console.error('[useAuth] erro inesperado:', err);
       setUserCd('todos');
     }
   };
 
   useEffect(() => {
-    iniciarTimeout();
-
-    const checkUser = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        console.log('[useAuth] getUser:', user?.email);
-        setUser(user);
-        setIsAdmin(ADMIN_EMAILS.includes(user?.email));
-        await fetchUserCd(user);
-      } catch (error) {
-        console.error('[useAuth] Erro ao verificar usuário:', error);
-        setUserCd('todos');
-      } finally {
-        setLoading(false);
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      }
-    };
-
-    checkUser();
-
+    // Não inicia loading até o onAuthStateChange confirmar sessão
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[useAuth] onAuthStateChange:', event, session?.user?.email);
-      const currentUser = session?.user || null;
+
+      if (event === 'SIGNED_OUT' || !session) {
+        setUser(null);
+        setIsAdmin(false);
+        setUserCd('todos');
+        setLoading(false);
+        return;
+      }
+
+      const currentUser = session.user;
       setUser(currentUser);
-      setIsAdmin(ADMIN_EMAILS.includes(currentUser?.email));
+      setIsAdmin(ADMIN_EMAILS.includes(currentUser.email));
+
       iniciarTimeout();
       await fetchUserCd(currentUser);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      setLoading(false);
     });
 
     return () => {
@@ -86,14 +76,10 @@ export const useAuth = () => {
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
-      setUser(null);
-      setIsAdmin(false);
-      setUserCd('todos');
     } catch (error) {
-      console.error('[useAuth] Erro ao fazer logout:', error);
+      console.error('[useAuth] erro ao fazer logout:', error);
     }
   };
 
   return { user, isAdmin, userCd, loading, handleLogout };
-  
 };
