@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { ADMIN_EMAILS } from '../constants/auth';
 
@@ -7,46 +7,16 @@ export const useAuth = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [userCd, setUserCd]   = useState(null);
   const [loading, setLoading] = useState(true);
-  const timeoutRef            = useRef(null);
 
-  const iniciarTimeout = () => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => {
-      console.log('[useAuth] timeout disparou — forçando userCd=todos');
-      setUserCd(prev => (prev === null ? 'todos' : prev));
-      setLoading(false);
-    }, 6000);
-  };
-
-  const fetchUserCd = async (currentUser) => {
-    if (!currentUser) { setUserCd('todos'); return; }
-    if (ADMIN_EMAILS.includes(currentUser.email)) { setUserCd('todos'); return; }
-
-    try {
-      console.log('[useAuth] buscando CD para:', currentUser.email);
-      const { data, error } = await supabase
-        .from('user_cds')
-        .select('cd')
-        .eq('user_id', currentUser.id)
-        .limit(1);
-
-      console.log('[useAuth] resultado user_cds:', { data, error });
-
-      if (error) {
-        console.error('[useAuth] erro RLS user_cds:', error.message);
-        setUserCd('todos');
-      } else {
-        setUserCd(data?.[0]?.cd ?? 'todos');
-      }
-    } catch (err) {
-      console.error('[useAuth] erro inesperado:', err);
-      setUserCd('todos');
-    }
+  const resolverCd = (currentUser) => {
+    if (!currentUser) return 'todos';
+    if (ADMIN_EMAILS.includes(currentUser.email)) return 'todos';
+    // Lê o CD direto dos metadados do usuário — sem query extra
+    return currentUser.user_metadata?.cd ?? 'todos';
   };
 
   useEffect(() => {
-    // Não inicia loading até o onAuthStateChange confirmar sessão
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log('[useAuth] onAuthStateChange:', event, session?.user?.email);
 
       if (event === 'SIGNED_OUT' || !session) {
@@ -58,19 +28,16 @@ export const useAuth = () => {
       }
 
       const currentUser = session.user;
+      const cd = resolverCd(currentUser);
+      console.log('[useAuth] CD resolvido:', cd);
+
       setUser(currentUser);
       setIsAdmin(ADMIN_EMAILS.includes(currentUser.email));
-
-      iniciarTimeout();
-      await fetchUserCd(currentUser);
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      setUserCd(cd);
       setLoading(false);
     });
 
-    return () => {
-      subscription?.unsubscribe();
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
+    return () => subscription?.unsubscribe();
   }, []);
 
   const handleLogout = async () => {
