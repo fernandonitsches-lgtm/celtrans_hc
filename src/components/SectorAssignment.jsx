@@ -40,6 +40,7 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
   const [dashboardAba, setDashboardAba]         = useState('metricas');
   const [colaboradorSelecionado, setColaboradorSelecionado] = useState(null);
   const [abrirEmFalta, setAbrirEmFalta]                     = useState(false);
+  const [confirmouFalta, setConfirmouFalta]                 = useState(false);
   const [loadingData, setLoadingData]           = useState(false);
   const [dataTemRegistro, setDataTemRegistro]   = useState(false);
 
@@ -227,6 +228,7 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
   };
 
   const handleMarcarFalta = (person, motivo, observacao) => {
+    setConfirmouFalta(true);
     setAssignments(prev => {
       const next = { ...prev };
       Object.keys(next).forEach(k => { next[k] = next[k].filter(p => p.id !== person.id); });
@@ -238,11 +240,13 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
   };
 
   const handleMoverColaborador = (person, destinoKey) => {
+    const [novaOperacao, novoSetor] = destinoKey.split('||');
+    const personAtualizado = { ...person, operacao: novaOperacao, setor: novoSetor };
     setAssignments(prev => {
       const next = { ...prev };
-      Object.keys(next).forEach(k => { next[k] = next[k].filter(p => p.id !== person.id); });
+      Object.keys(next).forEach(k => { next[k] = (next[k] || []).filter(p => p.id !== person.id); });
       if (!next[destinoKey]) next[destinoKey] = [];
-      next[destinoKey] = [...next[destinoKey], person];
+      next[destinoKey] = [...next[destinoKey], personAtualizado];
       return next;
     });
   };
@@ -960,13 +964,11 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
         person={colaboradorSelecionado}
         isOpen={!!colaboradorSelecionado}
         onClose={() => {
-          // Se veio do drag e fechou sem confirmar → devolve ao setor de origem
-          if (abrirEmFalta && colaboradorSelecionado) {
-            handleRemoverFalta(colaboradorSelecionado);
-          }
           setColaboradorSelecionado(null);
           setAbrirEmFalta(false);
+          setConfirmouFalta(false);
         }}
+        onCancelarDrag={(person) => handleRemoverFalta(person)}
         onMarcarFalta={handleMarcarFalta}
         onMover={handleMoverColaborador}
         onLicenca={handleLicenca}

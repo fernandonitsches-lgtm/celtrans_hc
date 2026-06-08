@@ -11,32 +11,48 @@ const ModalColaborador = ({
   onLicenca,
   setoresPorOperacao,
   operacoes,
-  abrirEmFalta = false, // ← NOVO: abre direto na tela de motivo
+  abrirEmFalta = false,
+  onCancelarDrag,  // chamado quando cancela vindo do drag — devolve ao setor
 }) => {
-  const [acao, setAcao]                   = useState(null);
-  const [motivo, setMotivo]               = useState('');
-  const [observacao, setObservacao]       = useState('');
+  const [acao, setAcao]               = useState(null);
+  const [motivo, setMotivo]           = useState('');
+  const [observacao, setObservacao]   = useState('');
   const [operacaoDestino, setOperacaoDestino] = useState('');
-  const [setorDestino, setSetorDestino]   = useState('');
-  const [erro, setErro]                   = useState('');
+  const [setorDestino, setSetorDestino] = useState('');
+  const [erro, setErro]               = useState('');
 
-  // Quando abrir via drag → vai direto para tela de falta
   useEffect(() => {
-    if (isOpen && abrirEmFalta) {
-      setAcao('falta');
+    if (isOpen && abrirEmFalta) setAcao('falta');
+    if (!isOpen) {
+      setAcao(null); setMotivo(''); setObservacao('');
+      setOperacaoDestino(''); setSetorDestino(''); setErro('');
     }
   }, [isOpen, abrirEmFalta]);
 
   if (!isOpen || !person) return null;
 
+  const resetModal = () => {
+    setAcao(null); setMotivo(''); setObservacao('');
+    setOperacaoDestino(''); setSetorDestino(''); setErro('');
+  };
+
   const handleClose = () => {
-    setAcao(null);
-    setMotivo('');
-    setObservacao('');
-    setOperacaoDestino('');
-    setSetorDestino('');
-    setErro('');
+    if (abrirEmFalta) {
+      onCancelarDrag && onCancelarDrag(person);
+    }
+    resetModal();
     onClose();
+  };
+
+  const handleCancelar = () => {
+    if (abrirEmFalta) {
+      // Veio do drag e cancelou — devolve ao setor de origem
+      resetModal();
+      onCancelarDrag && onCancelarDrag(person);
+      onClose();
+    } else {
+      setAcao(null); setErro('');
+    }
   };
 
   const handleConfirmarFalta = () => {
@@ -44,17 +60,21 @@ const ModalColaborador = ({
     if (motivo === 'outros' && !observacao.trim()) { setErro('Descreva o motivo em "Outros"'); return; }
     if (motivo === 'licenca_maternidade_paternidade') {
       onLicenca(person);
-      handleClose();
+      resetModal();
+      onClose();
       return;
     }
+    // Confirma falta — NÃO chama onCancelarDrag
     onMarcarFalta(person, motivo, motivo === 'outros' ? observacao : '');
-    handleClose();
+    resetModal();
+    onClose();
   };
 
   const handleConfirmarMover = () => {
     if (!operacaoDestino || !setorDestino) { setErro('Selecione operação e setor de destino'); return; }
     onMover(person, `${operacaoDestino}||${setorDestino}`);
-    handleClose();
+    resetModal();
+    onClose();
   };
 
   const iniciais = person.name.split(' ').slice(0, 2).map(n => n[0]).join('');
@@ -85,7 +105,7 @@ const ModalColaborador = ({
           {person.area && <p className="text-xs text-slate-500 mt-0.5">Área: <span className="font-semibold text-slate-700">{person.area}</span></p>}
         </div>
 
-        {/* Tela inicial — escolha de ação */}
+        {/* Tela inicial */}
         {!acao && (
           <div className="p-5 space-y-3">
             <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-3">O que deseja fazer?</p>
@@ -115,31 +135,25 @@ const ModalColaborador = ({
         {/* Tela: Falta */}
         {acao === 'falta' && (
           <div className="p-5 space-y-4">
-            {/* Voltar só aparece se não veio do drag (drag não tem tela anterior) */}
             {!abrirEmFalta && (
               <button onClick={() => { setAcao(null); setErro(''); }}
                 className="text-xs text-slate-500 hover:text-slate-700 flex items-center gap-1">
                 ← Voltar
               </button>
             )}
-
             <h4 className="font-bold text-slate-800">Motivo da ausência</h4>
-
-            {/* Badge indicando que veio do drag */}
             {abrirEmFalta && (
               <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 flex items-center gap-2">
                 <span>↓</span>
                 <span>Colaborador arrastado para ausências — selecione o motivo para confirmar.</span>
               </div>
             )}
-
             {erro && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
                 <p className="text-red-600 text-xs">{erro}</p>
               </div>
             )}
-
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5">Selecione o motivo *</label>
               <select value={motivo} onChange={(e) => { setMotivo(e.target.value); setErro(''); }}
@@ -150,14 +164,12 @@ const ModalColaborador = ({
                 ))}
               </select>
             </div>
-
             {motivo === 'licenca_maternidade_paternidade' && (
               <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-700">
                 <p className="font-semibold mb-1">⚠️ Licença especial</p>
                 <p>O colaborador será marcado como "Em Licença" e não aparecerá na atribuição diária.</p>
               </div>
             )}
-
             {motivo === 'outros' && (
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">Descreva o motivo *</label>
@@ -167,21 +179,8 @@ const ModalColaborador = ({
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none bg-slate-50" />
               </div>
             )}
-
             <div className="flex gap-2 pt-2">
-              <button
-                onClick={() => {
-                  // Se veio do drag, cancelar devolve ao setor de origem
-                  if (abrirEmFalta) {
-                    // handleRemoverFalta não está disponível aqui, mas o onClose
-                    // vai fechar sem marcar falta — o SectorAssignment já removeu
-                    // do setor, então precisamos devolver via onClose especial.
-                    // Solução: onClose do SectorAssignment chama handleRemoverFalta
-                    handleClose();
-                  } else {
-                    setAcao(null); setErro('');
-                  }
-                }}
+              <button onClick={handleCancelar}
                 className="flex-1 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-semibold text-sm hover:bg-slate-200 transition">
                 {abrirEmFalta ? 'Cancelar e devolver' : 'Cancelar'}
               </button>
