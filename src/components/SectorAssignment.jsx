@@ -379,6 +379,13 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
     return origem && (origem.setor !== setorAtual || origem.operacao !== operacaoAtual);
   };
 
+  // Retorna os dados mais atuais da pessoa (do initialPeople), evitando dados congelados no assignments
+  const dadosAtuais = (person) => {
+    const atual = initialPeople.find(p => p.id === person.id);
+    // Mantém operacao/setor do assignments (posição atual) mas atualiza cargo, nome, status, cd
+    return atual ? { ...person, name: atual.name, cargo: atual.cargo, cd: atual.cd, em_recrutamento: atual.em_recrutamento, de_ferias: atual.de_ferias, em_licenca: atual.em_licenca } : person;
+  };
+
   const pessoasAusentesDaOrigem = (operacao, setor, area = null) => {
     const key = makeKey(operacao, setor);
     return initialPeople.filter(p => {
@@ -431,7 +438,10 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
             <h3 className="font-bold text-slate-500 mb-1 pb-1.5 border-b border-slate-200 text-xs line-clamp-2">{setor}</h3>
             <span className="text-xs text-blue-500 font-semibold">({filtered.length})</span>
             <div className="space-y-1.5 mt-2">
-              {filtered.map(person => {
+              {filtered.map(personRaw => {
+                const person = dadosAtuais(personRaw);
+                // Se a pessoa virou vaga, férias ou licença → não renderiza como card ativo
+                if (person.em_recrutamento || person.de_ferias || person.em_licenca) return null;
                 const visitante = estaForaDaOrigem(person, operacao, setor);
                 const iniciais  = person.name.split(' ').slice(0, 2).map(n => n[0]).join('');
                 return (

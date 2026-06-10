@@ -61,13 +61,17 @@ const pessoasService = {
 
 const formInicial = { name: '', cargo: '', area: '', setor: '', operacao: '', cd: '', de_ferias: false, em_recrutamento: false };
 
-const derivarOpcoes = (funcionarios, operacaoSelecionada) => ({
-  operacao: [...new Set(funcionarios.map(f => f.operacao).filter(Boolean))].sort(),
-  cargo:    [...new Set(funcionarios.map(f => f.cargo).filter(Boolean))].sort(),
-  setor:    [...new Set(funcionarios.filter(f => !operacaoSelecionada || f.operacao === operacaoSelecionada).map(f => f.setor).filter(Boolean))].sort(),
-  area:     [...new Set(funcionarios.filter(f => !operacaoSelecionada || f.operacao === operacaoSelecionada).map(f => f.area).filter(Boolean))].sort(),
-  cd:       [...new Set(funcionarios.map(f => f.cd).filter(Boolean))].sort(),
-});
+const derivarOpcoes = (funcionarios, operacaoSelecionada, cdSelecionado) => {
+  // Filtra funcionários pelo CD selecionado (se houver)
+  const base = cdSelecionado ? funcionarios.filter(f => f.cd === cdSelecionado) : funcionarios;
+  return {
+    operacao: [...new Set(base.map(f => f.operacao).filter(Boolean))].sort(),
+    cargo:    [...new Set(base.map(f => f.cargo).filter(Boolean))].sort(),
+    setor:    [...new Set(base.filter(f => !operacaoSelecionada || f.operacao === operacaoSelecionada).map(f => f.setor).filter(Boolean))].sort(),
+    area:     [...new Set(base.filter(f => !operacaoSelecionada || f.operacao === operacaoSelecionada).map(f => f.area).filter(Boolean))].sort(),
+    cd:       [...new Set(funcionarios.map(f => f.cd).filter(Boolean))].sort(),
+  };
+};
 
 const filtrarFuncionarios = (funcionarios, searchTerm, mostrarVagas, filterCd) =>
   funcionarios.filter(f => {
@@ -100,7 +104,9 @@ const CadastroFuncionarios = ({ userCd = 'todos' }) => {
   const [cdCustom, setCdCustom]                 = useState(false);
   const [confirmarDelete, setConfirmarDelete]   = useState(null);
 
-  const opcoes = derivarOpcoes(funcionarios, formData.operacao);
+  // Para usuário restrito usa o userCd; senão usa o CD escolhido no formulário
+  const cdParaOpcoes = cdBloqueado ? userCd : formData.cd;
+  const opcoes = derivarOpcoes(funcionarios, formData.operacao, cdParaOpcoes);
   const cdsUnicos = [...new Set(funcionarios.map(f => f.cd).filter(Boolean))].sort();
   const filteredFuncionarios = filtrarFuncionarios(funcionarios, searchTerm, mostrarVagas, filterCd);
 
@@ -501,7 +507,7 @@ const CadastroFuncionarios = ({ userCd = 'todos' }) => {
                     </div>
                   ) : !cdCustom ? (
                     <div className="flex gap-2">
-                      <select value={formData.cd} onChange={(e) => setFormData({ ...formData, cd: e.target.value })}
+                      <select value={formData.cd} onChange={(e) => setFormData({ ...formData, cd: e.target.value, operacao: '', setor: '', area: '' })}
                         className="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm">
                         <option value="">Sem CD / Selecione...</option>
                         {opcoes.cd.map(cd => <option key={cd} value={cd}>{cd}</option>)}
