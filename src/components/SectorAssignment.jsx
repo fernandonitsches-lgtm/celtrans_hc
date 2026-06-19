@@ -8,6 +8,7 @@ import ExcelJS from 'exceljs';
 import ModalSalvar from './ModalSalvar';
 import RankingFaltas from './RankingFaltas';
 import ModalColaborador from './ModalColaborador';
+import ModalEditarInss from './ModalEditarInss';
 import DashboardAbsenteismo from './DashboardAbsenteismo';
 
 const OP_NET = 'NET';
@@ -18,6 +19,12 @@ const NET_AREA_CORES = {
   'TERMINAL':   { border: 'border-cyan-400',   bg: 'bg-cyan-50/60',   label: 'text-cyan-700',   badge: 'bg-cyan-100 text-cyan-700'    },
 };
 const NET_AREA_COR_DEFAULT = { border: 'border-slate-400', bg: 'bg-slate-50/60', label: 'text-slate-700', badge: 'bg-slate-100 text-slate-600' };
+
+// Verifica se a pessoa está afastada por INSS na data informada
+const estaAfastadoInss = (p, dataRef) => {
+  if (!p.afastado_inss || !p.inss_inicio || !p.inss_fim) return false;
+  return dataRef >= p.inss_inicio && dataRef <= p.inss_fim;
+};
 
 const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
   const [assignments, setAssignments]           = useState(null);
@@ -39,13 +46,15 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
   const [confirmarReset, setConfirmarReset]     = useState(false);
   const [dashboardAba, setDashboardAba]         = useState('metricas');
   const [colaboradorSelecionado, setColaboradorSelecionado] = useState(null);
+  const [inssEditando, setInssEditando]                     = useState(null);
+  const [toast, setToast]                                   = useState(null);
   const [abrirEmFalta, setAbrirEmFalta]                     = useState(false);
   const [confirmouFalta, setConfirmouFalta]                 = useState(false);
   const [loadingData, setLoadingData]           = useState(false);
   const [dataTemRegistro, setDataTemRegistro]   = useState(false);
 
   const { stopAutoScroll } = useAutoScroll();
-  const { initialPeople, operacoes, cds, loading, error } = usePessoas();
+  const { initialPeople, operacoes, cds, loading, error, refetch } = usePessoas();
 
   useEffect(() => { setViewMode(forcarDashboard ? 'dashboard' : 'atribuir'); }, [forcarDashboard]);
   useEffect(() => { setFilterCd(userCd); }, [userCd]);
@@ -70,10 +79,10 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
       .map(p => p.area).filter(Boolean)
   )].sort();
 
-  const initializeAssignments = useCallback((people) => {
+  const initializeAssignments = useCallback((people, dataRef) => {
     const init = { falta: [] };
     people
-      .filter(p => !p.de_ferias && !p.em_licenca && p.operacao !== 'ANALISTA GERAL' && !p.em_recrutamento)
+      .filter(p => !p.de_ferias && !p.em_licenca && !estaAfastadoInss(p, dataRef) && p.operacao !== 'ANALISTA GERAL' && !p.em_recrutamento)
       .forEach(person => {
         const key = makeKey(person.operacao, person.setor);
         if (!init[key]) init[key] = [];
@@ -95,7 +104,7 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
       ]);
       const temRegistro = (atrib?.length || 0) + (faltasData?.length || 0) > 0;
       setDataTemRegistro(temRegistro);
-      if (!temRegistro) { initializeAssignments(people); return; }
+      if (!temRegistro) { initializeAssignments(people, data); return; }
       const pessoasMap = {};
       people.forEach(p => { pessoasMap[p.id] = p; });
       const newAssignments = { falta: [] };
@@ -115,12 +124,29 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
         novasJust[f.pessoa_id]    = f.justificativa || '';
         novosMotivos[f.pessoa_id] = f.motivo || '';
       });
+
+      // Pessoas ativas que não estão em nenhum lugar do registro salvo
+      // (ex.: vaga recém-preenchida ou colaborador novo cadastrado depois do save)
+      // → entram automaticamente no setor de origem, em vez de virar "deslocado"
+      const idsNoRegistro = new Set();
+      Object.keys(newAssignments).forEach(k => {
+        (newAssignments[k] || []).forEach(p => idsNoRegistro.add(p.id));
+      });
+      people
+        .filter(p => !p.de_ferias && !p.em_licenca && !estaAfastadoInss(p, data) && !p.em_recrutamento && p.operacao !== 'ANALISTA GERAL')
+        .forEach(person => {
+          if (idsNoRegistro.has(person.id)) return;
+          const key = makeKey(person.operacao, person.setor);
+          if (!newAssignments[key]) newAssignments[key] = [];
+          newAssignments[key].push(person);
+        });
+
       setAssignments(newAssignments);
       setJustificativas(novasJust);
       setMotivosFalta(novosMotivos);
     } catch (err) {
       console.error(err);
-      initializeAssignments(people);
+      initializeAssignments(people, data);
     } finally {
       setLoadingData(false);
     }
@@ -142,6 +168,14 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
   useEffect(() => {
     if (initialPeople.length > 0) carregarAtribuicaoPorData(today, initialPeople);
   }, [today]);
+
+  // Auto-fecha o toast após 3.5s
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(null), 3500);
+      return () => clearTimeout(t);
+    }
+  }, [toast]);
 
   const vagas     = initialPeople.filter(p => p.em_recrutamento);
   const isSuporte = (p) => p.operacao === OP_SUPORTE;
@@ -263,6 +297,48 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
     } catch (err) { alert('Erro ao marcar licença: ' + err.message); }
   };
 
+  const handleAfastamentoInss = async (person, inicio, fim) => {
+    try {
+      const { error } = await supabase.from('pessoas')
+        .update({ afastado_inss: true, inss_inicio: inicio, inss_fim: fim })
+        .eq('id', person.id);
+      if (error) throw error;
+      setAssignments(prev => {
+        const next = { ...prev };
+        Object.keys(next).forEach(k => { next[k] = next[k].filter(p => p.id !== person.id); });
+        return next;
+      });
+      await refetch();
+      setToast({ tipo: 'ok', msg: `${person.name} afastado(a) por INSS até ${new Date(fim + 'T00:00:00').toLocaleDateString('pt-BR')}` });
+    } catch (err) { setToast({ tipo: 'erro', msg: 'Erro ao marcar afastamento: ' + err.message }); }
+  };
+
+  // Altera as datas de um afastamento já existente
+  const handleAlterarInss = async (person, inicio, fim) => {
+    try {
+      const { error } = await supabase.from('pessoas')
+        .update({ afastado_inss: true, inss_inicio: inicio, inss_fim: fim })
+        .eq('id', person.id);
+      if (error) throw error;
+      setInssEditando(null);
+      await refetch();
+      setToast({ tipo: 'ok', msg: `Afastamento de ${person.name} atualizado` });
+    } catch (err) { setToast({ tipo: 'erro', msg: 'Erro ao alterar: ' + err.message }); }
+  };
+
+  // Encerra o afastamento INSS imediatamente (pessoa volta ao fluxo)
+  const handleEncerrarInss = async (person) => {
+    try {
+      const { error } = await supabase.from('pessoas')
+        .update({ afastado_inss: false, inss_inicio: null, inss_fim: null })
+        .eq('id', person.id);
+      if (error) throw error;
+      setInssEditando(null);
+      await refetch();
+      setToast({ tipo: 'ok', msg: `Afastamento de ${person.name} encerrado. Voltou ao fluxo normal.` });
+    } catch (err) { setToast({ tipo: 'erro', msg: 'Erro ao encerrar: ' + err.message }); }
+  };
+
   const handleReset          = () => setConfirmarReset(true);
   const handleConfirmarReset = () => { carregarAtribuicaoPorData(today, initialPeople); setConfirmarReset(false); };
   const handleJustificativa  = (personId, texto) => setJustificativas(prev => ({ ...prev, [personId]: texto }));
@@ -339,6 +415,7 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
   const setoresSuporte    = [...new Set(pessoasSuporte.map(p => p.setor))].sort();
   const pessoasEmFerias   = initialPeopleCd.filter(p => p.de_ferias);
   const pessoasEmLicenca  = initialPeopleCd.filter(p => p.em_licenca);
+  const pessoasAfastadasInss = initialPeopleCd.filter(p => estaAfastadoInss(p, today));
   const vagasFiltradas    = vagas.filter(v => filterCd === 'todos' || v.cd === filterCd);
   const faltasFiltradas   = (assignments.falta || []).filter(p => !isSuporte(p) && (filterCd === 'todos' || p.cd === filterCd));
   const faltasSemObs      = faltasFiltradas.filter(p =>
@@ -382,8 +459,7 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
   // Retorna os dados mais atuais da pessoa (do initialPeople), evitando dados congelados no assignments
   const dadosAtuais = (person) => {
     const atual = initialPeople.find(p => p.id === person.id);
-    // Mantém operacao/setor do assignments (posição atual) mas atualiza cargo, nome, status, cd
-    return atual ? { ...person, name: atual.name, cargo: atual.cargo, cd: atual.cd, em_recrutamento: atual.em_recrutamento, de_ferias: atual.de_ferias, em_licenca: atual.em_licenca } : person;
+    return atual ? { ...person, name: atual.name, cargo: atual.cargo, cd: atual.cd, em_recrutamento: atual.em_recrutamento, de_ferias: atual.de_ferias, em_licenca: atual.em_licenca, afastado_inss: atual.afastado_inss, inss_inicio: atual.inss_inicio, inss_fim: atual.inss_fim } : person;
   };
 
   const pessoasAusentesDaOrigem = (operacao, setor, area = null) => {
@@ -440,8 +516,8 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
             <div className="space-y-1.5 mt-2">
               {filtered.map(personRaw => {
                 const person = dadosAtuais(personRaw);
-                // Se a pessoa virou vaga, férias ou licença → não renderiza como card ativo
-                if (person.em_recrutamento || person.de_ferias || person.em_licenca) return null;
+                // Se a pessoa virou vaga, férias, licença ou afastamento INSS → não renderiza como card ativo
+                if (person.em_recrutamento || person.de_ferias || person.em_licenca || estaAfastadoInss(person, today)) return null;
                 const visitante = estaForaDaOrigem(person, operacao, setor);
                 const iniciais  = person.name.split(' ').slice(0, 2).map(n => n[0]).join('');
                 return (
@@ -628,6 +704,19 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
   // ── Main View ──
   return (
     <div className="bg-slate-50 min-h-screen">
+      {/* Toast de notificação */}
+      {toast && (
+        <div className="fixed top-4 right-4 z-[60] animate-in fade-in slide-in-from-top-2">
+          <div className={`flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg border text-sm font-medium ${toast.tipo === 'ok' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+            <span>{toast.tipo === 'ok' ? '✓' : '⚠'}</span>
+            <span>{toast.msg}</span>
+            <button onClick={() => setToast(null)} className="ml-2 text-slate-400 hover:text-slate-600">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-white border-b border-slate-200 px-6 py-4">
         <div className="flex items-center justify-between">
@@ -935,6 +1024,31 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
               </div>
             )}
 
+            {/* Afastados INSS */}
+            {pessoasAfastadasInss.length > 0 && (
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2"><span>🏥</span><span className="font-bold text-slate-700 text-sm">Afastados INSS</span></div>
+                  <span className="bg-rose-400 text-white text-xs font-bold px-2 py-0.5 rounded-full">{pessoasAfastadasInss.length}</span>
+                </div>
+                <div className="p-3 space-y-1.5 max-h-44 overflow-y-auto">
+                  {pessoasAfastadasInss.map(person => (
+                    <button key={person.id} onClick={() => setInssEditando(person)}
+                      className="w-full flex items-center gap-2 p-2 bg-rose-50 rounded-lg border border-rose-100 hover:border-rose-300 hover:bg-rose-100 transition text-left">
+                      <div className="w-6 h-6 rounded-full bg-rose-400 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                        {person.name.split(' ').slice(0, 2).map(n => n[0]).join('')}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold text-rose-800 text-xs truncate">{person.name}</div>
+                        <div className="text-rose-400 text-xs truncate">até {new Date(person.inss_fim + 'T00:00:00').toLocaleDateString('pt-BR')}</div>
+                      </div>
+                      <span className="text-rose-300 text-xs flex-shrink-0">✎</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Recrutamento */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
@@ -982,9 +1096,18 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
         onMarcarFalta={handleMarcarFalta}
         onMover={handleMoverColaborador}
         onLicenca={handleLicenca}
+        onAfastamentoInss={handleAfastamentoInss}
         setoresPorOperacao={setoresPorOperacao}
         operacoes={operacoes}
         abrirEmFalta={abrirEmFalta}
+      />
+
+      <ModalEditarInss
+        person={inssEditando}
+        isOpen={!!inssEditando}
+        onClose={() => setInssEditando(null)}
+        onAlterar={handleAlterarInss}
+        onEncerrar={handleEncerrarInss}
       />
 
       <ModalSalvar
@@ -995,6 +1118,7 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
         justificativas={justificativas}
         onJustificativaChange={handleJustificativa}
         data={today}
+        filterCd={filterCd}
         totalColaboradores={initialPeopleCd.filter(p => !p.em_recrutamento && !isSuporte(p)).length}
         emFerias={pessoasEmFerias}
         motivosFalta={motivosFalta}

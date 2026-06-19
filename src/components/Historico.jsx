@@ -10,17 +10,21 @@ const LABEL_MOTIVO = (valor) => {
   return found ? found.label : valor;
 };
 
-const Historico = () => {
+const Historico = ({ userCd = 'todos' }) => {
+  const cdBloqueado = userCd !== 'todos';
   const [atribuicoes, setAtribuicoes] = useState([]);
   const [faltas, setFaltas]           = useState([]);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState('');
   const [searchTerm, setSearchTerm]   = useState('');
   const [filterData, setFilterData]   = useState('');
-  const [filterCd, setFilterCd]       = useState('todos');
+  const [filterCd, setFilterCd]       = useState(userCd);
   const [filterOperacao, setFilterOperacao] = useState('todas');
   const [periodoFiltro, setPeriodoFiltro]   = useState('semana');
   const [expandedDates, setExpandedDates]   = useState({});
+
+  // Mantém o filtro de CD sincronizado com o CD do usuário
+  useEffect(() => { setFilterCd(userCd); }, [userCd]);
 
   const formatarData = (dataString) => {
     const [ano, mes, dia] = dataString.split('-');
@@ -141,7 +145,7 @@ const Historico = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `historico_${new Date().toISOString().split('T')[0]}.xlsx`;
+    link.download = `historico_${new Date().toISOString().split('T')[0]}${filterCd !== 'todos' ? `_${filterCd}` : ''}.xlsx`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -187,7 +191,7 @@ const Historico = () => {
         {/* Filtros */}
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-3">
           {/* Período rápido */}
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 flex-wrap items-center">
             {[
               { label: 'Hoje', value: 'dia' },
               { label: 'Últimos 7 dias', value: 'semana' },
@@ -203,6 +207,12 @@ const Historico = () => {
                 {op.label}
               </button>
             ))}
+            {/* Badge do CD para usuário restrito */}
+            {cdBloqueado && (
+              <span className="ml-auto inline-flex items-center gap-1.5 text-xs bg-green-50 text-green-700 border border-green-200 px-3 py-1.5 rounded-full font-semibold">
+                <Building2 className="w-3.5 h-3.5" /> {userCd}
+              </span>
+            )}
           </div>
 
           {/* Busca + filtros */}
@@ -217,7 +227,8 @@ const Historico = () => {
             <input type="date" value={filterData} onChange={(e) => setFilterData(e.target.value)}
               className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-slate-50" />
 
-            {cdsDisponiveis.length > 0 && (
+            {/* Select de CD — só aparece para admin */}
+            {!cdBloqueado && cdsDisponiveis.length > 0 && (
               <select value={filterCd} onChange={(e) => setFilterCd(e.target.value)}
                 className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-slate-50">
                 <option value="todos">Todos os CDs</option>
@@ -231,8 +242,8 @@ const Historico = () => {
               {operacoesDisponiveis.map(op => <option key={op} value={op}>{op}</option>)}
             </select>
 
-            {(searchTerm || filterData || filterCd !== 'todos' || filterOperacao !== 'todas') && (
-              <button onClick={() => { setSearchTerm(''); setFilterData(''); setFilterCd('todos'); setFilterOperacao('todas'); }}
+            {(searchTerm || filterData || (!cdBloqueado && filterCd !== 'todos') || filterOperacao !== 'todas') && (
+              <button onClick={() => { setSearchTerm(''); setFilterData(''); setFilterOperacao('todas'); if (!cdBloqueado) setFilterCd('todos'); setFilterOperacao('todas'); }}
                 className="px-3 py-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition text-sm font-medium">
                 Limpar
               </button>

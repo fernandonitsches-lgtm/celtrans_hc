@@ -17,6 +17,7 @@ const ModalSalvar = ({
   justificativas,
   onJustificativaChange,
   data,
+  filterCd = 'todos',
   remanejados = [],
   emFerias = [],
   totalColaboradores = 0,
@@ -27,7 +28,9 @@ const ModalSalvar = ({
   const [ocorrenciasRemanejados, setOcorrenciasRemanejados] = useState({});
   const [erro, setErro] = useState('');
 
-  const faltas = assignments['falta'] || [];
+  // Filtra por CD ativo
+  const filtraCd = (p) => filterCd === 'todos' || p.cd === filterCd;
+  const faltas = (assignments['falta'] || []).filter(filtraCd);
 
   // Sincroniza justificativas quando o modal abre
   useEffect(() => {
@@ -70,9 +73,10 @@ const ModalSalvar = ({
 
   if (!isOpen) return null;
 
+  // Presentes filtrados por CD
   const totalPresentes = Object.keys(assignments)
     .filter(k => k !== 'falta')
-    .reduce((sum, k) => sum + (assignments[k]?.length || 0), 0);
+    .reduce((sum, k) => sum + (assignments[k] || []).filter(filtraCd).length, 0);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -82,7 +86,9 @@ const ModalSalvar = ({
         <div className="sticky top-0 bg-blue-600 p-5 flex items-center justify-between rounded-t-2xl">
           <div>
             <h2 className="text-lg font-bold text-white">Confirmar Atribuição</h2>
-            <p className="text-blue-200 text-xs mt-0.5">{data}</p>
+            <p className="text-blue-200 text-xs mt-0.5">
+              {data}{filterCd !== 'todos' && <span className="ml-2 px-2 py-0.5 bg-blue-500 rounded-full">CD: {filterCd}</span>}
+            </p>
           </div>
           <button onClick={handleClose} className="text-white hover:bg-blue-700 p-1.5 rounded-lg transition">
             <X className="w-5 h-5" />
