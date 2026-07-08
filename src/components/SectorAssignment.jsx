@@ -297,19 +297,64 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
     } catch (err) { alert('Erro ao marcar licença: ' + err.message); }
   };
 
+  // Gera registros diários de afastamento INSS (seg-sex, pulando feriados do CD)
+  const gerarRegistrosInss = async (person, inicio, fim) => {
+    const { data: feriadosData } = await supabase
+      .from('feriados')
+      .select('data, cd')
+      .or(`cd.is.null,cd.eq.${person.cd}`);
+    const feriadosSet = new Set((feriadosData || []).map(f => f.data));
+
+    const registros = [];
+    const dataIni = new Date(inicio + 'T00:00:00');
+    const dataFim = new Date(fim + 'T00:00:00');
+    for (let d = new Date(dataIni); d <= dataFim; d.setDate(d.getDate() + 1)) {
+      const diaSemana = d.getDay();
+      if (diaSemana === 0 || diaSemana === 6) continue;
+      const dataStr = d.toISOString().split('T')[0];
+      if (feriadosSet.has(dataStr)) continue;
+      registros.push({
+        data: dataStr, pessoa_id: person.id, pessoa_nome: person.name,
+        cargo: person.cargo, operacao: person.operacao, area: person.area,
+        cd: person.cd, motivo: 'afastamento_inss', justificativa: '', plano_acao: '',
+      });
+    }
+    return registros;
+  };
+
+  // Remove os registros INSS de um período
+  const limparRegistrosInss = async (personId, inicio, fim) => {
+    let q = supabase.from('faltas_diarias').delete()
+      .eq('pessoa_id', personId).eq('motivo', 'afastamento_inss');
+    if (inicio) q = q.gte('data', inicio);
+    if (fim)    q = q.lte('data', fim);
+    await q;
+  };
+
   const handleAfastamentoInss = async (person, inicio, fim) => {
     try {
+      // 1) Marca a pessoa como afastada
       const { error } = await supabase.from('pessoas')
         .update({ afastado_inss: true, inss_inicio: inicio, inss_fim: fim })
         .eq('id', person.id);
       if (error) throw error;
+
+      // 2) Gera e grava os registros diários (seg-sex, pulando feriados)
+      const registros = await gerarRegistrosInss(person, inicio, fim);
+      await limparRegistrosInss(person.id, inicio, fim);
+      if (registros.length > 0) {
+        const { error: insErr } = await supabase.from('faltas_diarias').insert(registros);
+        if (insErr) throw insErr;
+      }
+
+      // 3) Remove da atribuição do dia atual
       setAssignments(prev => {
         const next = { ...prev };
         Object.keys(next).forEach(k => { next[k] = next[k].filter(p => p.id !== person.id); });
         return next;
       });
       await refetch();
-      setToast({ tipo: 'ok', msg: `${person.name} afastado(a) por INSS até ${new Date(fim + 'T00:00:00').toLocaleDateString('pt-BR')}` });
+      setToast({ tipo: 'ok', msg: `${person.name} afastado(a) por INSS — ${registros.length} dia(s) útil(eis) lançado(s)` });
     } catch (err) { setToast({ tipo: 'erro', msg: 'Erro ao marcar afastamento: ' + err.message }); }
   };
 
@@ -320,9 +365,18 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
         .update({ afastado_inss: true, inss_inicio: inicio, inss_fim: fim })
         .eq('id', person.id);
       if (error) throw error;
+
+      // Regenera os registros: limpa todos os antigos e cria os do novo período
+      await limparRegistrosInss(person.id, null, null);
+      const registros = await gerarRegistrosInss(person, inicio, fim);
+      if (registros.length > 0) {
+        const { error: insErr } = await supabase.from('faltas_diarias').insert(registros);
+        if (insErr) throw insErr;
+      }
+
       setInssEditando(null);
       await refetch();
-      setToast({ tipo: 'ok', msg: `Afastamento de ${person.name} atualizado` });
+      setToast({ tipo: 'ok', msg: `Afastamento de ${person.name} atualizado — ${registros.length} dia(s) lançado(s)` });
     } catch (err) { setToast({ tipo: 'erro', msg: 'Erro ao alterar: ' + err.message }); }
   };
 
@@ -333,6 +387,10 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
         .update({ afastado_inss: false, inss_inicio: null, inss_fim: null })
         .eq('id', person.id);
       if (error) throw error;
+
+      // Remove os registros de hoje em diante (mantém o histórico já passado)
+      await limparRegistrosInss(person.id, today, null);
+
       setInssEditando(null);
       await refetch();
       setToast({ tipo: 'ok', msg: `Afastamento de ${person.name} encerrado. Voltou ao fluxo normal.` });
@@ -418,6 +476,8 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
   const pessoasAfastadasInss = initialPeopleCd.filter(p => estaAfastadoInss(p, today));
   const vagasFiltradas    = vagas.filter(v => filterCd === 'todos' || v.cd === filterCd);
   const faltasFiltradas   = (assignments.falta || []).filter(p => !isSuporte(p) && (filterCd === 'todos' || p.cd === filterCd));
+  // Para o painel de alertas: exclui afastamento INSS (já aparece no painel próprio); continua contando no absenteísmo
+  const faltasAlerta      = faltasFiltradas.filter(p => motivosFalta[p.id] !== 'afastamento_inss');
   const faltasSemObs      = faltasFiltradas.filter(p =>
     motivosFalta[p.id] === 'outros' && (!justificativas[p.id] || justificativas[p.id].trim() === '')
   );
@@ -554,7 +614,7 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
                 <div key={`vaga-${vaga.id}`} className="bg-purple-50 p-2 rounded-lg border border-dashed border-purple-200 text-xs">
                   <div className="font-semibold text-purple-600">🔍 Em Recrutamento</div>
                   <div className="text-purple-400 truncate">{vaga.cargo}</div>
-                  {vaga.nome_anterior && <div className="text-purple-300">Ant: {vaga.nome_anterior}</div>}
+                  {vaga.name && vaga.name !== 'VAGA EM RECRUTAMENTO' && <div className="text-purple-300 truncate">Saiu: {vaga.name}</div>}
                 </div>
               ))}
             </div>
@@ -633,14 +693,14 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
       </div>
 
       {/* Lista de faltas com botão remover */}
-      {faltasFiltradas.length > 0 && (
+      {faltasAlerta.length > 0 && (
         <div className="border-t border-slate-100 mt-4 pt-4">
           <h3 className="text-xs font-bold text-slate-600 mb-3 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-red-500 inline-block"></span>
             Faltas do dia — clique × para desfazer
           </h3>
           <div className="space-y-1.5 max-h-48 overflow-y-auto">
-            {faltasFiltradas.map(person => (
+            {faltasAlerta.map(person => (
               <div key={person.id} className="flex items-center gap-2 p-2 bg-red-50 rounded-lg border border-red-100 text-xs">
                 <div className="w-6 h-6 rounded-full bg-red-400 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                   {person.name.split(' ').slice(0, 2).map(n => n[0]).join('')}
@@ -931,13 +991,13 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
                   <Bell className="w-4 h-4 text-slate-500" />
                   <span className="font-bold text-slate-700 text-sm">Alertas do dia</span>
                 </div>
-                {faltasFiltradas.length > 0 && (
-                  <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">{faltasFiltradas.length}</span>
+                {faltasAlerta.length > 0 && (
+                  <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">{faltasAlerta.length}</span>
                 )}
               </div>
               <div onDragOver={(e) => handleDragOver(e, 'falta')} onDragLeave={handleDragLeave} onDrop={() => handleDrop('falta')}
                 className={`p-3 min-h-20 transition-colors ${dragOver === 'falta' ? 'bg-red-50' : ''}`}>
-                {faltasFiltradas.length === 0 ? (
+                {faltasAlerta.length === 0 ? (
                   <div className="text-center py-4">
                     <UserX className="w-7 h-7 text-slate-200 mx-auto mb-2" />
                     <p className="text-xs text-slate-400">Nenhuma falta registrada</p>
@@ -951,7 +1011,7 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
                         <p className="text-xs text-red-600 font-semibold">{faltasSemObs.length} sem observação</p>
                       </div>
                     )}
-                    {filteredPeople(assignments.falta || []).map(person => (
+                    {filteredPeople(faltasAlerta).map(person => (
                       <div key={person.id}
                         draggable
                         onDragStart={(e) => handleDragStart(e, person, 'falta')}
@@ -1062,7 +1122,7 @@ const SectorAssignment = ({ forcarDashboard = false, userCd = 'todos' }) => {
                     <div key={vaga.id} className="p-2 bg-purple-50 rounded-lg border border-purple-100 text-xs">
                       <div className="font-semibold text-purple-700 truncate">{vaga.cargo}</div>
                       <div className="text-purple-400 truncate">{vaga.setor} · {vaga.operacao}</div>
-                      {vaga.nome_anterior && <div className="text-purple-300 mt-0.5">Ant: {vaga.nome_anterior}</div>}
+                      {vaga.name && vaga.name !== 'VAGA EM RECRUTAMENTO' && <div className="text-purple-300 mt-0.5 truncate">Saiu: {vaga.name}</div>}
                     </div>
                   ))}
               </div>
